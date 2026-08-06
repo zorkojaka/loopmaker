@@ -36,9 +36,20 @@ bas in enotaktni hi-hat ostaneta v fazi, prižiganje sredi takta pa ne premakne 
   **kvantizacije** (1/16, 1/8, 1/4).
 - **Akcent** naredi naslednje udarce glasnejše, **Metronom** doda klik na vsako dobo.
 - Pod ploščicami je mreža istega loopa: kar zgrešiš, popraviš s prstom.
-- Snemanje z mikrofona bo prišlo v isto okno.
 
-## Kanali
+**Mikrofon** je v istem oknu: **+ nov → Posnetek → Mikrofon**.
+
+- Izbereš dolžino (1, 2 ali 4 takte) in pritisneš **SNEMAJ Z MIKROFONA**.
+- Snemanje se sproži šele na začetku naslednjega takta — vmesni takt je odštevanje z
+  metronomom, tako da posnetek pade točno v mrežo.
+- Zajem teče v `AudioWorklet` po vzorcih (`public/capture-worklet.js`), zato je posnetek
+  natanko toliko dolg, kolikor traja loop.
+- **Zamik naprave** premakne okno snemanja naprej ali nazaj; s tem izničiš zakasnitev
+  svojega telefona. Če posnetek zveni prepozno, povečaj zamik in posnemi znova.
+- Posnetki gredo v IndexedDB (ne v localStorage, kjer bi hitro zmanjkalo prostora).
+- Ob spremembi tempa se posnetek raztegne, da ostane v ritmu.
+
+## Kanali in kitice
 
 Vse je na enem zaslonu. Vsak loop je svoja vrstica:
 
@@ -53,6 +64,16 @@ Vse je na enem zaslonu. Vsak loop je svoja vrstica:
   podvoji, preimenuj, dolžina, zapolni vsako 4- ali 8-tinko, počisti, izbriši.
 - **Dolg pritisk / desni klik na polje v mreži**: ghost, akcent, **roll ×2–×4**, izbriši.
 - Spodaj so **+ Nov loop**, **Vse prižgi** in **Vse ugasni**.
+
+**Kitice** so nad kanali:
+
+- **+ shrani stanje** posname, kateri loopi trenutno igrajo, in doda kitico v zaporedje.
+- Tap na kitico prižge natanko tiste loope; dolg pritisk odpre meni (preimenuj, dolžina v
+  taktih, posodobi po trenutnem stanju, izbriši).
+- **Zaporedje** je vrsta kitic; s puščicama ju premikaš, z ✕ odstraniš.
+- **Predvajaj zaporedje** preda vodenje kiticam: skladba gre kitica → refren → kitica sama,
+  trenutna kitica je označena. Stikala na kanalih takrat samo pripravljajo stanje, ki ga s
+  *Posodobi po trenutnem stanju* shraniš nazaj v kitico.
 
 **Klaviatura** (pod melodičnim loopom)
 

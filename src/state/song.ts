@@ -1,5 +1,5 @@
 import { INSTRUMENTS, MELODIC, emptySteps, instrumentOf, melodicOf, parseSteps } from '../audio/instruments'
-import type { Loop, LoopKind, Note, Song, Step, Vel } from '../types'
+import type { Loop, LoopKind, Note, Section, Song, Step, Vel } from '../types'
 import { STEPS_PER_BAR } from '../types'
 
 let idSeq = 0
@@ -18,8 +18,11 @@ export function cloneLoop(loop: Loop): Loop {
   return { ...structuredClone(loop), id: uid('l') }
 }
 
+/** Posneti loopi nimajo glasu iz knjižnice, zato svoje privzetke. */
+const SAMPLE_DEF = { name: 'Posnetek', color: '#ff9f5a', level: 0.9 }
+
 export function makeLoop(voice: string, kind: LoopKind, opts: Partial<Loop> = {}): Loop {
-  const def = kind === 'drum' ? instrumentOf(voice) : melodicOf(voice)
+  const def = kind === 'sample' ? SAMPLE_DEF : kind === 'drum' ? instrumentOf(voice) : melodicOf(voice)
   const length = opts.length ?? STEPS_PER_BAR
   return {
     id: uid('l'),
@@ -70,8 +73,45 @@ export function diatonicChords(root: number, mode: 'dur' | 'mol') {
   }))
 }
 
+export const SECTION_COLORS = ['#6ee7ff', '#ff8fab', '#ffd166', '#a0e548', '#c792ea', '#5ad1c2']
+
+/** Katera kitica teče ob danem globalnem koraku in kje v njej smo. */
+export function sectionAt(song: Song, globalStep: number): { section: Section; index: number; barInSection: number } | null {
+  if (!song.chainOn || !song.chain.length) return null
+  const list = song.chain.map((id) => song.sections.find((s) => s.id === id)).filter((s): s is Section => !!s)
+  if (!list.length) return null
+
+  const totalBars = list.reduce((n, s) => n + s.bars, 0)
+  let bar = Math.floor(globalStep / STEPS_PER_BAR) % totalBars
+  for (let i = 0; i < list.length; i++) {
+    if (bar < list[i].bars) return { section: list[i], index: i, barInSection: bar }
+    bar -= list[i].bars
+  }
+  return { section: list[0], index: 0, barInSection: 0 }
+}
+
+/** Ali loop ob tem koraku igra — v zaporedju odloča kitica, sicer stikalo loopa. */
+export function loopPlaysAt(song: Song, loop: Loop, globalStep: number): boolean {
+  const at = sectionAt(song, globalStep)
+  return at ? at.section.loopIds.includes(loop.id) : loop.active
+}
+
+export function makeSection(song: Song, name?: string): Section {
+  const n = song.sections.length
+  return {
+    id: uid('s'),
+    name: name ?? (n === 0 ? 'Kitica' : n === 1 ? 'Refren' : `Del ${n + 1}`),
+    color: SECTION_COLORS[n % SECTION_COLORS.length],
+    loopIds: song.loops.filter((l) => l.active).map((l) => l.id),
+    bars: 4,
+  }
+}
+
 export function defaultSong(): Song {
   return {
+    sections: [],
+    chain: [],
+    chainOn: false,
     loops: [
       drum('kick', 'X...x...X.......'),
       drum('snare', '....X.......X...'),
@@ -163,7 +203,7 @@ export function migrate(old: OldSong): Song {
   })
 
   if (!loops.length) return defaultSong()
-  return { loops, bpm: old.bpm ?? 96, swing: old.swing ?? 0.12, master: old.master ?? 0.8, metronome: false }
+  return { loops, sections: [], chain: [], chainOn: false, bpm: old.bpm ?? 96, swing: old.swing ?? 0.12, master: old.master ?? 0.8, metronome: false }
 }
 
 // --- akcije --------------------------------------------------------------
@@ -183,6 +223,14 @@ export type Action =
   | { t: 'noteAdd'; id: string; notes: Note[] }
   | { t: 'noteRemove'; id: string; step: number; midi: number }
   | { t: 'notePatch'; id: string; step: number; midi: number; patch: Partial<Note> }
+  | { t: 'sectionAdd' }
+  | { t: 'sectionPatch'; id: string; patch: Partial<Section> }
+  | { t: 'sectionDelete'; id: string }
+  | { t: 'sectionApply'; id: string }
+  | { t: 'sectionCapture'; id: string }
+  | { t: 'chainAdd'; id: string }
+  | { t: 'chainRemove'; at: number }
+  | { t: 'chainMove'; at: number; by: number }
   | { t: 'reset' }
 
 function mapLoop(song: Song, id: string, fn: (l: Loop) => Loop): Song {
@@ -268,6 +316,51 @@ export function reducer(song: Song, a: Action): Song {
         notes: l.notes.map((n) => (n.step === a.step && n.midi === a.midi ? { ...n, ...a.patch } : n)),
       }))
 
+    case 'sectionAdd': {
+      const section = makeSection(song)
+      return { ...song, sections: [...song.sections, section], chain: [...song.chain, section.id] }
+    }
+
+    case 'sectionPatch':
+      return { ...song, sections: song.sections.map((s) => (s.id === a.id ? { ...s, ...a.patch } : s)) }
+
+    case 'sectionDelete':
+      return {
+        ...song,
+        sections: song.sections.filter((s) => s.id !== a.id),
+        chain: song.chain.filter((id) => id !== a.id),
+      }
+
+    case 'sectionApply': {
+      // prižgi natanko tiste loope, ki so v kitici
+      const section = song.sections.find((s) => s.id === a.id)
+      if (!section) return song
+      return { ...song, loops: song.loops.map((l) => ({ ...l, active: section.loopIds.includes(l.id) })) }
+    }
+
+    case 'sectionCapture':
+      return {
+        ...song,
+        sections: song.sections.map((s) =>
+          s.id === a.id ? { ...s, loopIds: song.loops.filter((l) => l.active).map((l) => l.id) } : s,
+        ),
+      }
+
+    case 'chainAdd':
+      return { ...song, chain: [...song.chain, a.id] }
+
+    case 'chainRemove':
+      return { ...song, chain: song.chain.filter((_, i) => i !== a.at) }
+
+    case 'chainMove': {
+      const to = a.at + a.by
+      if (to < 0 || to >= song.chain.length) return song
+      const chain = song.chain.slice()
+      const [moved] = chain.splice(a.at, 1)
+      chain.splice(to, 0, moved)
+      return { ...song, chain }
+    }
+
     case 'reset':
       return defaultSong()
   }
@@ -277,4 +370,5 @@ export function reducer(song: Song, a: Action): Song {
 export const LOOP_CHOICES = [
   ...INSTRUMENTS.map((i) => ({ voice: i.voice, name: i.name, kind: 'drum' as LoopKind, color: i.color })),
   ...MELODIC.map((i) => ({ voice: i.voice, name: i.name, kind: 'melody' as LoopKind, color: i.color })),
+  { voice: 'mic', name: 'Mikrofon', kind: 'sample' as LoopKind, color: SAMPLE_DEF.color },
 ]

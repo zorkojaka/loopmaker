@@ -18,7 +18,7 @@ export interface Note {
   v: Vel
 }
 
-export type LoopKind = 'drum' | 'melody'
+export type LoopKind = 'drum' | 'melody' | 'sample'
 
 /**
  * Ena linija — najmanjša enota, ki jo lahko prižgeš ali ugasneš.
@@ -43,10 +43,35 @@ export interface Loop {
   decay: number
   /** ali loop trenutno igra */
   active: boolean
+  /** vrhovi valovne oblike za izris (samo posneti loopi) */
+  peaks?: number[]
+  /** tempo ob snemanju — po njem se posnetek raztegne, če spremeniš BPM */
+  recordedBpm?: number
+  /** zamik naprave v ms, ki smo ga upoštevali pri snemanju */
+  offsetMs?: number
+}
+
+/**
+ * Kitica ali refren: kateri loopi igrajo in koliko taktov traja.
+ * Zaporedje kitic sestavi skladbo, ne da bi bilo treba karkoli tapkati v živo.
+ */
+export interface Section {
+  id: string
+  name: string
+  color: string
+  /** id-ji loopov, ki v tej kitici igrajo */
+  loopIds: string[]
+  /** trajanje v taktih */
+  bars: number
 }
 
 export interface Song {
   loops: Loop[]
+  sections: Section[]
+  /** vrstni red kitic; prazno = brez zaporedja */
+  chain: string[]
+  /** ali zaporedje kitic vodi predvajanje */
+  chainOn: boolean
   bpm: number
   /** 0..0.6 — zamik lihih 16-tink */
   swing: number

@@ -6,6 +6,7 @@ import type { MenuItem, MenuState } from './components/ContextMenu'
 import { MakeView } from './components/MakeView'
 import { TopBar } from './components/TopBar'
 import type { View } from './components/TopBar'
+import { loadSamples, deleteSample } from './state/samples'
 import { defaultSong, migrate, reducer } from './state/song'
 import type { Song } from './types'
 
@@ -44,6 +45,30 @@ export default function App() {
   useEffect(() => {
     engine.setMaster(song.master)
   }, [engine, song.master])
+
+  // posnetki iz prejšnjih sej — brez njih bi posneti loopi molčali
+  useEffect(() => {
+    let stale = false
+    void loadSamples().then((samples) => {
+      if (stale) return
+      for (const [id, sample] of samples) engine.setSample(id, sample)
+    })
+    return () => {
+      stale = true
+    }
+  }, [engine])
+
+  // ko loop izgine, za sabo pospravi še posnetek
+  useEffect(() => {
+    const ids = new Set(song.loops.map((l) => l.id))
+    void loadSamples().then((samples) => {
+      for (const id of samples.keys()) {
+        if (ids.has(id)) continue
+        engine.dropSample(id)
+        void deleteSample(id)
+      }
+    })
+  }, [engine, song.loops])
 
   useEffect(() => {
     const id = setTimeout(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(song)), 300)

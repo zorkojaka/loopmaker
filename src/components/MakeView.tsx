@@ -1,13 +1,17 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, Dispatch } from 'react'
 import type { Engine } from '../audio/engine'
 import { midiName } from '../audio/instruments'
 import { useLoopLines } from '../hooks/useLoopLines'
+import { MicRecorder, peaksOf } from '../audio/recorder'
+import { saveSample } from '../state/samples'
 import { LOOP_CHOICES, loopById, makeLoop } from '../state/song'
 import type { Action } from '../state/song'
-import type { Loop, Song, Vel } from '../types'
+import type { Loop, LoopKind, Song, Vel } from '../types'
+import { STEPS_PER_BAR } from '../types'
 import type { MenuItem } from './ContextMenu'
 import { LoopRow } from './LoopRow'
+import { Waveform } from './Waveform'
 
 interface Props {
   song: Song
@@ -46,7 +50,27 @@ export function MakeView({ song, engine, dispatch, selectedId, onSelect, onEnsur
   const [flash, setFlash] = useState<number | null>(null)
   const [expanded, setExpanded] = useState(false)
   const flashTimer = useRef<number | null>(null)
-  const registerLine = useLoopLines(engine, song.loops)
+  const registerLine = useLoopLines(engine, song)
+
+  const mic = useRef<MicRecorder | null>(null)
+  if (!mic.current) mic.current = new MicRecorder()
+  const [micStage, setMicStage] = useState<'off' | 'ready' | 'waiting' | 'recording' | 'error'>('off')
+  const [micError, setMicError] = useState('')
+  const [recBars, setRecBars] = useState(1)
+
+  const meter = useRef<HTMLElement | null>(null)
+
+  // črtica glasnosti vhoda, dokler je mikrofon povezan
+  useEffect(() => {
+    if (micStage === 'off' || micStage === 'error') return
+    let raf = 0
+    const tick = () => {
+      if (meter.current) meter.current.style.transform = `scaleX(${Math.min(1, (mic.current?.level() ?? 0) * 1.6)})`
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [micStage])
 
   const loop = loopById(song, selectedId) ?? song.loops[0]
   if (!loop) return null
@@ -90,18 +114,64 @@ export function MakeView({ song, engine, dispatch, selectedId, onSelect, onEnsur
     if (next) await onEnsurePlaying()
   }
 
+  const recordMic = async () => {
+    setMicError('')
+    try {
+      await onEnsurePlaying()
+      const ctx = engine.context
+      if (!ctx) throw new Error('zvok še ni pripravljen')
+
+      setMicStage('waiting')
+      await mic.current!.connect(ctx)
+
+      const pos = engine.position()
+      if (pos < 0) throw new Error('ura ne teče')
+
+      // snemanje se začne na začetku naslednjega takta; vmes teče odštevanje
+      const startStep = (Math.floor(pos / STEPS_PER_BAR) + 1) * STEPS_PER_BAR
+      const startTime = engine.timeOfStep(startStep)
+      if (startTime === null) throw new Error('ura ne teče')
+
+      const length = recBars * STEPS_PER_BAR
+      const duration = length * engine.stepDuration
+      if (!song.metronome) dispatch({ t: 'song', patch: { metronome: true } })
+
+      const untilStart = Math.max(0, (startTime - ctx.currentTime) * 1000)
+      window.setTimeout(() => setMicStage('recording'), untilStart)
+
+      const data = await mic.current!.record(ctx, startTime, duration, loop.offsetMs ?? 0)
+      const sample = { data, sampleRate: ctx.sampleRate }
+      engine.setSample(loop.id, sample)
+      await saveSample(loop.id, sample)
+      dispatch({
+        t: 'loopPatch',
+        id: loop.id,
+        patch: { length, peaks: peaksOf(data), recordedBpm: song.bpm, active: true },
+      })
+      setMicStage('ready')
+    } catch (e) {
+      setMicError(e instanceof Error ? e.message : String(e))
+      setMicStage('error')
+    }
+  }
+
   const addLoop = (x: number, y: number) => {
-    const add = (voice: string, kind: 'drum' | 'melody') => {
-      const fresh = makeLoop(voice, kind, { active: true })
+    const add = (voice: string, kind: LoopKind) => {
+      const fresh = makeLoop(voice, kind, { active: kind !== 'sample' })
       dispatch({ t: 'loopInsert', loop: fresh })
       onSelect(fresh.id)
     }
+    const group = (kind: LoopKind) =>
+      LOOP_CHOICES.filter((c) => c.kind === kind).map((c) => ({ label: c.name, onClick: () => add(c.voice, c.kind) }))
     openMenu(x, y, [
       { label: 'Ritem', header: true },
-      ...LOOP_CHOICES.filter((c) => c.kind === 'drum').map((c) => ({ label: c.name, onClick: () => add(c.voice, c.kind) })),
+      ...group('drum'),
       { separator: true },
       { label: 'Melodija', header: true },
-      ...LOOP_CHOICES.filter((c) => c.kind === 'melody').map((c) => ({ label: c.name, onClick: () => add(c.voice, c.kind) })),
+      ...group('melody'),
+      { separator: true },
+      { label: 'Posnetek', header: true },
+      ...group('sample'),
     ])
   }
 
@@ -154,7 +224,53 @@ export function MakeView({ song, engine, dispatch, selectedId, onSelect, onEnsur
         </div>
       </div>
 
-      {melodic ? (
+      {loop.kind === 'sample' ? (
+        <div className="micpanel" style={{ '--track': loop.color } as CSSProperties}>
+          <div className="make__opts">
+            <button
+              className={`rec${micStage === 'recording' ? ' rec--on' : ''}`}
+              disabled={micStage === 'waiting' || micStage === 'recording'}
+              onClick={() => void recordMic()}
+            >
+              <span className="rec__dot" />
+              {micStage === 'waiting' ? 'ODŠTEVANJE' : micStage === 'recording' ? 'SNEMAM' : 'SNEMAJ Z MIKROFONA'}
+            </button>
+            <span className="make__label">Dolžina</span>
+            {[1, 2, 4].map((b) => (
+              <button key={b} className={`chip${recBars === b ? ' chip--on' : ''}`} onClick={() => setRecBars(b)}>
+                {b === 1 ? '1 takt' : `${b} takti`}
+              </button>
+            ))}
+          </div>
+
+          <div className="meter">
+            <i ref={meter} />
+          </div>
+
+          <Waveform peaks={loop.peaks ?? []} />
+
+          <label className="slider">
+            <span className="slider__label">
+              Zamik naprave
+              <em>{loop.offsetMs ?? 0} ms</em>
+            </span>
+            <input
+              type="range"
+              min={-150}
+              max={150}
+              step={5}
+              value={loop.offsetMs ?? 0}
+              onChange={(e) => dispatch({ t: 'loopPatch', id: loop.id, patch: { offsetMs: Number(e.target.value) } })}
+            />
+          </label>
+
+          <p className="make__note">
+            Snemanje se sproži na začetku naslednjega takta, dotlej klika metronom. Če posnetek zveni prezgodaj ali
+            prepozno, premakni zamik in posnemi znova. Brez slušalk mikrofon posname tudi zvočnik.
+          </p>
+          {micError && <p className="make__error">Mikrofon: {micError}</p>}
+        </div>
+      ) : melodic ? (
         <>
           <div className="make__opts make__opts--scale">
             <select className="chords__key" value={root} onChange={(e) => setRoot(Number(e.target.value))}>

@@ -391,6 +391,165 @@ button:active {
   color: var(--dim);
 }
 
+/* --- mikrofon in valovna oblika ------------------------------------------ */
+
+.micpanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--track) 35%, var(--line));
+  border-radius: 16px;
+}
+
+.meter {
+  height: 8px;
+  border-radius: 4px;
+  background: #12151f;
+  overflow: hidden;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--track), #ff5c7c);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+
+.wave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 46px;
+  padding: 0 2px;
+}
+
+.wave i {
+  flex: 1;
+  min-width: 0;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--track) 70%, #0d1019);
+}
+
+.wave--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  color: var(--dim);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+
+.make__error {
+  margin: 0;
+  font-size: 12px;
+  color: #ff8896;
+}
+
+/* --- kitice in zaporedje -------------------------------------------------- */
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.sections__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sections__title {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.sec {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  font-size: 13px;
+  color: var(--sec);
+  background: color-mix(in srgb, var(--sec) 12%, var(--bg));
+  border-color: color-mix(in srgb, var(--sec) 45%, transparent);
+}
+
+.sec em {
+  font-style: normal;
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+.sec--add {
+  color: var(--accent);
+  background: transparent;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.chain {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.chainitem {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 3px 2px;
+  font-size: 12px;
+  color: var(--sec);
+  background: color-mix(in srgb, var(--sec) 10%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--sec) 35%, transparent);
+  border-radius: 999px;
+}
+
+.chainitem--now {
+  color: #07131a;
+  background: var(--sec);
+  border-color: #fff;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--sec) 45%, transparent);
+}
+
+.chainitem__move,
+.chainitem__x {
+  padding: 2px 5px;
+  font-size: 11px;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  border: none;
+  opacity: 0.7;
+}
+
+.chainitem__x {
+  opacity: 0.55;
+}
+
+.sections__hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
+.sections__hint strong {
+  color: var(--text);
+}
+
 /* --- deska loopov: vse na enem zaslonu ---------------------------------- */
 
 .board {

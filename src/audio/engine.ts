@@ -1,3 +1,5 @@
+import type { StoredSample } from '../state/samples'
+import { loopPlaysAt } from '../state/song'
 import type { Loop, Song, Vel } from '../types'
 import { STEPS_PER_BAR } from '../types'
 import { midiToFreq } from './instruments'
@@ -31,6 +33,9 @@ export class Engine {
   private queue: { step: number; time: number }[] = []
   private lastStep = -1
   private lastStepTime = 0
+  /** surovi posnetki po id-ju loopa in iz njih ustvarjeni bufferji */
+  private samples = new Map<string, StoredSample>()
+  private buffers = new Map<string, AudioBuffer>()
 
   playing = false
 
@@ -66,6 +71,38 @@ export class Engine {
     src.buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate)
     src.connect(this.ctx.destination)
     src.start(0)
+  }
+
+  /** Vstavi posnetek (iz IndexedDB ali sveže z mikrofona). */
+  setSample(id: string, sample: StoredSample) {
+    this.samples.set(id, sample)
+    this.buffers.delete(id)
+  }
+
+  dropSample(id: string) {
+    this.samples.delete(id)
+    this.buffers.delete(id)
+  }
+
+  hasSample(id: string) {
+    return this.samples.has(id)
+  }
+
+  /** AudioBuffer nastane šele, ko obstaja kontekst — zato lena izdelava. */
+  private bufferFor(id: string): AudioBuffer | null {
+    const cached = this.buffers.get(id)
+    if (cached) return cached
+    const sample = this.samples.get(id)
+    if (!sample || !this.ctx) return null
+    const buffer = this.ctx.createBuffer(1, sample.data.length, sample.sampleRate)
+    buffer.copyToChannel(sample.data, 0)
+    this.buffers.set(id, buffer)
+    return buffer
+  }
+
+  /** AudioContext, kadar že obstaja — snemalnik ga potrebuje za uro. */
+  get context(): AudioContext | null {
+    return this.ctx
   }
 
   setMaster(v: number) {
@@ -152,6 +189,21 @@ export class Engine {
     return this.lastStep + frac
   }
 
+  /** Kdaj (po uri konteksta) bo dani globalni korak zaigral. */
+  timeOfStep(step: number): number | null {
+    if (!this.playing || this.lastStep < 0) return null
+    return this.lastStepTime + (step - this.lastStep) * this.secPerStep
+  }
+
+  /** Zadnji korak, ki se je slišal — izhodišče za štetje taktov naprej. */
+  get currentStep(): number {
+    return this.lastStep
+  }
+
+  get stepDuration(): number {
+    return this.secPerStep
+  }
+
   private playDrum(loop: Loop, v: Vel, time: number, decayScale = 1) {
     if (!this.master || !this.ctx) return
     VOICES[loop.voice]?.(this.ctx, this.master, time, {
@@ -164,6 +216,23 @@ export class Engine {
   /** Razreši en korak enega loopa v zvok. */
   private scheduleLoop(loop: Loop, localStep: number, time: number) {
     if (!this.ctx || !this.master) return
+
+    if (loop.kind === 'sample') {
+      // posnetek se sproži na začetku svojega cikla in se konča, preden se ponovi
+      if (localStep !== 0) return
+      const buffer = this.bufferFor(loop.id)
+      if (!buffer) return
+      const src = this.ctx.createBufferSource()
+      src.buffer = buffer
+      // ob spremembi tempa posnetek raztegnemo, da ostane v ritmu
+      src.playbackRate.value = loop.recordedBpm ? this.getSong().bpm / loop.recordedBpm : 1
+      const gain = this.ctx.createGain()
+      gain.gain.value = loop.level
+      src.connect(gain).connect(this.master)
+      src.start(time)
+      src.stop(time + loop.length * this.secPerStep)
+      return
+    }
 
     if (loop.kind === 'melody') {
       const voice = VOICES[loop.voice]
@@ -207,7 +276,7 @@ export class Engine {
       const time = step % 2 === 1 ? this.nextStepTime + this.secPerStep * song.swing : this.nextStepTime
 
       for (const loop of song.loops) {
-        if (!loop.active) continue
+        if (!loopPlaysAt(song, loop, step)) continue
         this.scheduleLoop(loop, step % loop.length, time)
       }
 

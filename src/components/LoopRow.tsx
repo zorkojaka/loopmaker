@@ -8,11 +8,14 @@ import type { Action } from '../state/song'
 import type { Loop, Vel } from '../types'
 import type { MenuItem } from './ContextMenu'
 import { PianoRoll } from './PianoRoll'
+import { Waveform } from './Waveform'
 
 interface Props {
   loop: Loop
   engine: Engine
   dispatch: Dispatch<Action>
+  /** ali loop v tem trenutku res igra (v zaporedju odloča kitica) */
+  playing?: boolean
   expanded: boolean
   onExpand: () => void
   openMenu: (x: number, y: number, items: MenuItem[]) => void
@@ -54,10 +57,12 @@ function Slider({
  * takoj tudi urejaš. Podrobnosti (glasnost, uglasitev, klaviatura) se odprejo
  * pod vrstico, da ni treba nikamor oditi.
  */
-export function LoopRow({ loop, engine, dispatch, expanded, onExpand, openMenu, registerLine }: Props) {
+export function LoopRow({ loop, engine, dispatch, playing, expanded, onExpand, openMenu, registerLine }: Props) {
+  const on = playing ?? loop.active
   /** vrednost, ki jo trenutno "barvamo" med vlečenjem; null = ne vlečemo */
   const paint = useRef<Vel | null>(null)
   const melodic = loop.kind === 'melody'
+  const sampled = loop.kind === 'sample'
   // enotaktni loop se vedno prilega širini vrstice; daljši dobi drsenje,
   // da koraki ne postanejo premajhni za prst
   const columns: CSSProperties = {
@@ -133,7 +138,7 @@ export function LoopRow({ loop, engine, dispatch, expanded, onExpand, openMenu, 
   ]
 
   const handleDown = (e: React.PointerEvent) => {
-    if (melodic || e.button === 2) return
+    if (melodic || sampled || e.button === 2) return
     const step = stepAt(e.clientX, e.clientY)
     if (step === null) return
     const cur = loop.steps[step]
@@ -150,7 +155,11 @@ export function LoopRow({ loop, engine, dispatch, expanded, onExpand, openMenu, 
     if (step !== null) setStep(step, { v: paint.current })
   }
 
-  const summary = melodic
+  const summary = sampled
+    ? loop.peaks?.length
+      ? 'posnetek'
+      : 'prazen'
+    : melodic
     ? loop.notes.length
       ? `${loop.notes.length} not`
       : 'prazen'
@@ -159,7 +168,7 @@ export function LoopRow({ loop, engine, dispatch, expanded, onExpand, openMenu, 
       : 'prazen'
 
   return (
-    <div className={`lrow${loop.active ? ' lrow--on' : ''}`} style={{ '--track': loop.color } as CSSProperties}>
+    <div className={`lrow${on ? ' lrow--on' : ''}`} style={{ '--track': loop.color } as CSSProperties}>
       <button
         className="power"
         aria-pressed={loop.active}
@@ -172,7 +181,7 @@ export function LoopRow({ loop, engine, dispatch, expanded, onExpand, openMenu, 
         {...longPress((x, y) => openMenu(x, y, rowMenu()))}
       >
         <span className="power__ring" />
-        <span className="power__label">{loop.active ? 'IGRA' : 'IZKLOP'}</span>
+        <span className="power__label">{on ? 'IGRA' : 'IZKLOP'}</span>
       </button>
 
       <div className="lrow__main">
@@ -191,6 +200,9 @@ export function LoopRow({ loop, engine, dispatch, expanded, onExpand, openMenu, 
 
         <div className="lrow__grid">
           <div className="lrow__track">
+            {sampled ? (
+              <Waveform peaks={loop.peaks ?? []} />
+            ) : (
             <div
               className="lrow__cells"
               style={columns}
@@ -235,6 +247,7 @@ export function LoopRow({ loop, engine, dispatch, expanded, onExpand, openMenu, 
                 )
               })}
             </div>
+            )}
             <i className="rowline" ref={(el) => registerLine(loop.id, el)} />
           </div>
         </div>
