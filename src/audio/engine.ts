@@ -1,7 +1,5 @@
+import type { Loop, Song, Vel } from '../types'
 import { midiToFreq } from './instruments'
-import { barsOf, patternById, songLengthBars } from '../state/song'
-import type { Pattern, Song, Vel } from '../types'
-import { STEPS_PER_BAR } from '../types'
 import { VOICES } from './voices'
 
 /** Kako pogosto se zbudi scheduler (ms) in kako daleč naprej razporeja (s). */
@@ -17,9 +15,9 @@ const GAIN_BY_VEL: Record<Vel, number> = { 0: 0, 1: 0.3, 2: 0.62, 3: 1 }
  * 25 ms pogleda 120 ms naprej in vse dogodke pripne na vzorčno natančno uro
  * AudioContexta. Ritem zato ne plava, tudi če brskalnik za hip zajeclja.
  *
- * Isti scheduler poganja oba načina — razlika je le, kateri korak razrešimo v
- * zvok: v načinu 'pattern' korak trenutnega vzorca, v 'song' pa globalni korak
- * časovnice, pri katerem pogledamo, kateri bloki tečejo ravno zdaj.
+ * Ura teče neprekinjeno naprej, vsak loop pa se nanjo pripne po svoji dolžini
+ * (`globalStep % loop.length`). Zato loopi različnih dolžin ostanejo v fazi,
+ * prižiganje in ugašanje med igranjem pa nikoli ne premakne ritma.
  */
 export class Engine {
   private ctx: AudioContext | null = null
@@ -111,16 +109,34 @@ export class Engine {
     }
   }
 
-  /** Zaigraj en glas takoj — predposlušanje ob izbiri instrumenta. */
-  async preview(pattern: Pattern, trackIndex: number) {
+  /** Zaigraj loop enkrat takoj — predposlušanje ob izbiri. */
+  async preview(loop: Loop) {
     await this.unlock()
     if (!this.ctx) return
-    this.playTrack(pattern, trackIndex, 3, this.ctx.currentTime + 0.01, 1)
+    if (loop.kind === 'melody') {
+      const first = loop.notes[0]
+      await this.previewNote(loop.voice, (first?.midi ?? 60) + loop.tune, loop.level)
+    } else {
+      this.playDrum(loop, 3, this.ctx.currentTime + 0.01)
+    }
+  }
+
+  /** Zaigraj eno noto melodičnega glasu — uporablja klaviatura. */
+  async previewNote(voice: string, midi: number, level = 0.7, dur = 0.4) {
+    await this.unlock()
+    if (!this.ctx || !this.master) return
+    VOICES[voice]?.(this.ctx, this.master, this.ctx.currentTime + 0.01, {
+      gain: level * GAIN_BY_VEL[2],
+      tune: 0,
+      decay: 1,
+      freq: midiToFreq(midi),
+      dur,
+    })
   }
 
   /**
-   * Pozicija playheada v korakih, z decimalko vmes (za gladko drsenje traku).
-   * -1 pomeni, da ne igramo.
+   * Pozicija v korakih od začetka predvajanja, z decimalko vmes (za gladko
+   * drsenje traku). -1 pomeni, da ne igramo.
    */
   position(): number {
     if (!this.playing || !this.ctx) return -1
@@ -135,68 +151,46 @@ export class Engine {
     return this.lastStep + frac
   }
 
-  private playTrack(pattern: Pattern, index: number, v: Vel, time: number, decayScale = 1) {
-    const track = pattern.tracks[index]
-    if (!track || !this.master || !this.ctx) return
-    const voice = VOICES[track.voice]
-    if (!voice) return
-    voice(this.ctx, this.master, time, {
-      gain: track.level * GAIN_BY_VEL[v],
-      tune: track.tune,
-      decay: track.decay * decayScale,
+  private playDrum(loop: Loop, v: Vel, time: number, decayScale = 1) {
+    if (!this.master || !this.ctx) return
+    VOICES[loop.voice]?.(this.ctx, this.master, time, {
+      gain: loop.level * GAIN_BY_VEL[v],
+      tune: loop.tune,
+      decay: loop.decay * decayScale,
     })
   }
 
-  /** Zaigraj eno noto melodičnega glasu — uporablja piano roll za predposluh. */
-  async previewNote(voice: string, midi: number, level = 0.7, dur = 0.4) {
-    await this.unlock()
+  /** Razreši en korak enega loopa v zvok. */
+  private scheduleLoop(loop: Loop, localStep: number, time: number) {
     if (!this.ctx || !this.master) return
-    const play = VOICES[voice]
-    play?.(this.ctx, this.master, this.ctx.currentTime + 0.01, {
-      gain: level * GAIN_BY_VEL[2],
-      tune: 0,
-      decay: 1,
-      freq: midiToFreq(midi),
-      dur,
-    })
-  }
 
-  /** Razreši en korak vzorca v zvok (upošteva mute/solo in roll). */
-  private schedulePattern(pattern: Pattern, localStep: number, time: number) {
-    const anySolo = pattern.tracks.some((t) => t.soloed) || pattern.melodies.some((m) => m.soloed)
-
-    for (const melody of pattern.melodies) {
-      if (melody.muted || (anySolo && !melody.soloed)) continue
-      const voice = VOICES[melody.voice]
-      if (!voice || !this.ctx || !this.master) continue
-      for (const n of melody.notes) {
+    if (loop.kind === 'melody') {
+      const voice = VOICES[loop.voice]
+      if (!voice) return
+      for (const n of loop.notes) {
         if (n.step !== localStep || !n.v) continue
         voice(this.ctx, this.master, time, {
-          gain: melody.level * GAIN_BY_VEL[n.v],
+          gain: loop.level * GAIN_BY_VEL[n.v],
           tune: 0,
-          decay: melody.decay,
-          freq: midiToFreq(n.midi),
+          decay: loop.decay,
+          freq: midiToFreq(n.midi + loop.tune),
           dur: n.len * this.secPerStep,
         })
       }
+      return
     }
 
-    for (let i = 0; i < pattern.tracks.length; i++) {
-      const track = pattern.tracks[i]
-      if (track.muted || (anySolo && !track.soloed)) continue
-      const step = track.steps[localStep]
-      if (!step || !step.v) continue
-
-      const roll = Math.max(1, step.roll ?? 1)
-      if (roll === 1) {
-        this.playTrack(pattern, i, step.v, time)
-      } else {
-        // roll: udarci enakomerno znotraj koraka, krajši in nekoliko tišji
-        const gap = this.secPerStep / roll
-        for (let r = 0; r < roll; r++) {
-          const v = (r === 0 ? step.v : Math.max(1, step.v - 1)) as Vel
-          this.playTrack(pattern, i, v, time + r * gap, 1 / roll + 0.15)
-        }
+    const step = loop.steps[localStep]
+    if (!step || !step.v) return
+    const roll = Math.max(1, step.roll ?? 1)
+    if (roll === 1) {
+      this.playDrum(loop, step.v, time)
+    } else {
+      // roll: udarci enakomerno znotraj koraka, krajši in nekoliko tišji
+      const gap = this.secPerStep / roll
+      for (let r = 0; r < roll; r++) {
+        const v = (r === 0 ? step.v : Math.max(1, step.v - 1)) as Vel
+        this.playDrum(loop, v, time + r * gap, 1 / roll + 0.15)
       }
     }
   }
@@ -206,30 +200,18 @@ export class Engine {
     const song = this.getSong()
     this.secPerStep = 60 / song.bpm / 4
 
-    const patternMode = song.mode === 'pattern'
-    const current = patternById(song, song.currentPattern) ?? song.patterns[0]
-    const totalSteps = patternMode ? current.length : songLengthBars(song) * STEPS_PER_BAR
-
     while (this.nextStepTime < this.ctx.currentTime + LOOKAHEAD) {
-      const step = this.step % totalSteps
+      const step = this.step
       // swing zamakne lihe 16-tinke proti naslednji dobi
       const time = step % 2 === 1 ? this.nextStepTime + this.secPerStep * song.swing : this.nextStepTime
 
-      if (patternMode) {
-        this.schedulePattern(current, step, time)
-      } else {
-        const bar = Math.floor(step / STEPS_PER_BAR)
-        for (const clip of song.clips) {
-          const pattern = patternById(song, clip.patternId)
-          if (!pattern) continue
-          if (bar < clip.bar || bar >= clip.bar + barsOf(pattern)) continue
-          const local = (step - clip.bar * STEPS_PER_BAR) % pattern.length
-          this.schedulePattern(pattern, local, time)
-        }
+      for (const loop of song.loops) {
+        if (!loop.active) continue
+        this.scheduleLoop(loop, step % loop.length, time)
       }
 
       this.queue.push({ step, time })
-      this.step = (step + 1) % totalSteps
+      this.step = step + 1
       this.nextStepTime += this.secPerStep
     }
   }

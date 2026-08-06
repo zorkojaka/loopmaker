@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Mode, Song } from '../types'
+import type { Song } from '../types'
 import { BpmControl } from './BpmControl'
 
 interface Props {
@@ -7,12 +7,12 @@ interface Props {
   playing: boolean
   onToggle: () => void
   onBpm: (bpm: number) => void
-  onMode: (mode: Mode) => void
   onMix: (patch: Partial<Song>) => void
 }
 
-export function TopBar({ song, playing, onToggle, onBpm, onMode, onMix }: Props) {
+export function TopBar({ song, playing, onToggle, onBpm, onMix }: Props) {
   const [mixOpen, setMixOpen] = useState(false)
+  const active = song.loops.filter((l) => l.active).length
 
   return (
     <header className="topbar">
@@ -22,19 +22,10 @@ export function TopBar({ song, playing, onToggle, onBpm, onMode, onMix }: Props)
 
       <BpmControl bpm={song.bpm} onChange={onBpm} />
 
-      <div className="modes" role="tablist">
-        {(['pattern', 'song'] as Mode[]).map((m) => (
-          <button
-            key={m}
-            role="tab"
-            aria-selected={song.mode === m}
-            className={`mode${song.mode === m ? ' mode--on' : ''}`}
-            onClick={() => onMode(m)}
-          >
-            {m === 'pattern' ? 'Vzorec' : 'Skladba'}
-          </button>
-        ))}
-      </div>
+      <span className="topbar__count">
+        <strong>{active}</strong>
+        <span>{active === 1 ? 'loop igra' : 'loopov igra'}</span>
+      </span>
 
       <div className="mix">
         <button className={`icon${mixOpen ? ' icon--on' : ''}`} onClick={() => setMixOpen((v) => !v)} aria-label="Mešalnik">

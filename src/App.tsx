@@ -3,45 +3,35 @@ import { Engine } from './audio/engine'
 import { ContextMenu } from './components/ContextMenu'
 import type { MenuItem, MenuState } from './components/ContextMenu'
 import { Inspector } from './components/Inspector'
-import { PatternTabs } from './components/PatternTabs'
-import { PatternView } from './components/PatternView'
-import { SongView } from './components/SongView'
-import { TopBar } from './components/TopBar'
+import { LoopGrid } from './components/LoopGrid'
+import { Palette } from './components/Palette'
 import { PianoRoll } from './components/PianoRoll'
-import { currentPattern, defaultSong, makeMelody, reducer } from './state/song'
+import { TopBar } from './components/TopBar'
+import { defaultSong, loopById, migrate, reducer } from './state/song'
 import type { Song } from './types'
 
-const STORAGE_KEY = 'loopmaker.song.v2'
+const STORAGE_KEY = 'loopmaker.song.v3'
 
 function loadSong(): Song {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return defaultSong()
-    const parsed = JSON.parse(raw) as Song
-    // groba preverba: shema se je med razvojem že spremenila
-    if (!parsed?.patterns?.length || !parsed.patterns[0]?.tracks?.[0]?.steps?.[0]) return defaultSong()
-    if (typeof parsed.patterns[0].tracks[0].steps[0] !== 'object') return defaultSong()
-    return {
-      ...defaultSong(),
-      ...parsed,
-      // vzorci iz starejših različic nimajo melodičnih kanalov
-      patterns: parsed.patterns.map((p) => ({
-        ...p,
-        melodies: p.melodies?.length ? p.melodies : [makeMelody('piano'), makeMelody('flute')],
-      })),
+    if (raw) {
+      const parsed = JSON.parse(raw) as Song
+      if (parsed?.loops?.length) return { ...defaultSong(), ...parsed }
     }
+    // prva različica s paleto: prevzemi, kar je uporabnik naredil v starem modelu
+    const old = localStorage.getItem('loopmaker.song.v2')
+    if (old) return migrate(JSON.parse(old))
   } catch {
-    return defaultSong()
+    // pokvarjen zapis — raje začnemo s privzeto skladbo kot z belim zaslonom
   }
+  return defaultSong()
 }
 
 export default function App() {
   const [song, dispatch] = useReducer(reducer, undefined, loadSong)
   const [playing, setPlaying] = useState(false)
-  const [selectedTrack, setSelectedTrack] = useState(0)
-  const [selectedClip, setSelectedClip] = useState<string | null>(null)
-  /** indeks melodičnega kanala, ki je odprt v klaviaturi; null = ritmična mreža */
-  const [openMelody, setOpenMelody] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [menu, setMenu] = useState<MenuState | null>(null)
 
   // engine bere vedno zadnje stanje, ne da bi ga bilo treba ustavljati
@@ -72,17 +62,15 @@ export default function App() {
         e.preventDefault()
         void toggle()
       }
+      if (e.code === 'Escape' && editingId) setEditingId(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [toggle])
+  }, [toggle, editingId])
 
   const openMenu = useCallback((x: number, y: number, items: MenuItem[]) => setMenu({ x, y, items }), [])
 
-  const pattern = currentPattern(song)
-  const track = Math.min(selectedTrack, pattern.tracks.length - 1)
-  // kanal je lahko medtem izbrisan ali pa smo zamenjali vzorec z manj kanali
-  const melodyIndex = openMelody !== null && openMelody < pattern.melodies.length ? openMelody : null
+  const editing = loopById(song, editingId)
 
   return (
     <div className="app" onContextMenu={(e) => e.preventDefault()}>
@@ -91,53 +79,34 @@ export default function App() {
         playing={playing}
         onToggle={() => void toggle()}
         onBpm={(bpm) => dispatch({ t: 'song', patch: { bpm } })}
-        onMode={(mode) => dispatch({ t: 'song', patch: { mode } })}
         onMix={(patch) => dispatch({ t: 'song', patch })}
       />
 
-      <PatternTabs song={song} dispatch={dispatch} openMenu={openMenu} />
-
       <main className="stage">
-        {song.mode === 'pattern' && melodyIndex !== null ? (
+        {!editing ? (
+          <Palette song={song} engine={engine} dispatch={dispatch} onEdit={setEditingId} openMenu={openMenu} />
+        ) : editing.kind === 'melody' ? (
           <PianoRoll
-            pattern={pattern}
-            melodyIndex={melodyIndex}
+            loop={editing}
             engine={engine}
             dispatch={dispatch}
-            openMenu={openMenu}
-            onBack={() => setOpenMelody(null)}
-          />
-        ) : song.mode === 'pattern' ? (
-          <PatternView
-            pattern={pattern}
-            engine={engine}
-            dispatch={dispatch}
-            selectedTrack={track}
-            onSelectTrack={setSelectedTrack}
-            onOpenMelody={setOpenMelody}
+            onBack={() => setEditingId(null)}
             openMenu={openMenu}
           />
         ) : (
-          <SongView
+          <LoopGrid
             song={song}
+            editing={editing}
             engine={engine}
             dispatch={dispatch}
-            selectedClip={selectedClip}
-            onSelectClip={setSelectedClip}
+            onSelect={setEditingId}
+            onBack={() => setEditingId(null)}
             openMenu={openMenu}
           />
         )}
       </main>
 
-      <Inspector
-        song={song}
-        pattern={pattern}
-        selectedTrack={track}
-        selectedClip={selectedClip}
-        melodyIndex={melodyIndex}
-        engine={engine}
-        dispatch={dispatch}
-      />
+      {editing && <Inspector loop={editing} engine={engine} dispatch={dispatch} />}
 
       {menu && <ContextMenu state={menu} onClose={() => setMenu(null)} />}
     </div>

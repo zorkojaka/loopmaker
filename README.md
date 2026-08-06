@@ -1,67 +1,72 @@
 # Loopmaker
 
-Aplikacija za izdelavo glasbe v brskalniku — mišljena za telefon, brez namestitve.
+Looper za brskalnik — mišljen za telefon, brez namestitve.
 
 **Živa različica:** https://zorkojaka.github.io/loopmaker/
 
+## Ideja
+
+Delaš z **loopi**: ena linija = en loop. Naredi bobne, dodaj hi-hat, naredi basovsko
+linijo, akorde na klavirju — vsak je svoja kartica v paleti. Med igranjem jih s tapom
+prižigaš in ugašaš in tako sestavljaš skladbo v živo.
+
+Vsi loopi tečejo po skupni uri: loop se pripne na `globalStep % dolžina`, zato dvotaktni
+bas in enotaktni hi-hat ostaneta v fazi, prižiganje sredi takta pa ne premakne ritma.
+
 ## Kje smo
 
-- **Faza 1:** step sequencer — 9 sintetiziranih instrumentov, vzorci, swing, akcenti. ✔
-- **Faza 2:** aranžma — poljubno število vzorcev, bloki na časovnici, playhead, kontekstni meniji. ✔
-- **Faza 2b:** melodika — klavir, flavta, godala, brenkalo, orgle; piano roll z akordi. ✔
-- **Faza 3:** looper — snemanje z mikrofona telefona, overdub, kalibracija latence.
-- **Faza 4:** izvoz v WAV, PWA (offline), deljenje povezave.
-- **Faza 5:** kamera kot kontroler (sledenje roki prek MediaPipe).
+- **Faza 1:** sintetizirani zvoki in step sequencer. ✔
+- **Faza 2:** melodika — klavir, flavta, godala, brenkalo, orgle; klaviatura z akordi. ✔
+- **Faza 3:** paleta loopov — loop kot enota, prižiganje in ugašanje v živo. ✔
+- **Faza 4:** looper z mikrofonom — snemanje linije s telefona, overdub, kalibracija latence.
+- **Faza 5:** izvoz v WAV, PWA (offline), deljenje povezave.
+- **Faza 6:** kamera kot kontroler (sledenje roki prek MediaPipe).
 
 ## Uporaba
 
-Aplikacija ima dva pogleda, preklop je v zgornji vrstici:
+**Paleta** je glavni zaslon.
 
-**Vzorec** — mreža instrumentov × korakov.
+- **Tap na kartico** loop prižge ali ugasne. Črtica na dnu kartice kaže, kje v svojem ciklu je.
+- **✎** odpre urejevalnik tega loopa.
+- **Dolg pritisk / desni klik**: uredi, podvoji, preimenuj, samo ta naj igra, dolžina (1/2/4 takte),
+  počisti, izbriši.
+- **+ Nov loop** doda linijo: ritmično (Kick, Snare, Hat …) ali melodično (Klavir, Flavta …).
+- Spodaj sta **Vse prižgi** in **Vse ugasni**.
 
-- **Tap na celico**: prazno → zvok → akcent → prazno. Vlečenje riše po mreži.
-- **Desni klik / dolg pritisk na celico**: ghost, normalno, akcent, **roll ×2–×4**, izbriši.
-- **Desni klik na ime instrumenta**: mute, solo, zapolni vsako 4- ali 8-tinko, zbriši vrsto.
-- **Klik na trak s številkami** premakne playhead na tisti korak.
+**Urejevalnik ritma** (za ritmične loope)
 
-**Klaviatura** — tap na melodični kanal (Klavir, Flavta …) v mreži odpre piano roll.
+- Vsi loopi so vidni hkrati, ker se hi-hat piše proti bobnu — urejaš tistega, ki je izbran.
+- **Tap na celico**: prazno → zvok → akcent → prazno. Vlečenje riše.
+- Loop, krajši od mreže, se v njej **ponovi**; bledejša polja so ista koraka.
+- **Desni klik na celico**: ghost, akcent, **roll ×2–×4**, izbriši.
 
-- Navpično je višina tona, vodoravno čas; **akord je več not druga nad drugo**.
-- **Tap v polje** doda noto in jo predposluša, **tap na noto** jo odstrani.
-- **Vrstica akordov** postavi cel trozvok naenkrat: izberi tonaliteto (C…B, dur/mol) in klikni
-  stopnjo (I, ii, IV, V …). Vsak akord se vstavi na kazalec in ga premakne naprej.
-- **Desni klik na noto**: dolžina (1–8 korakov), glasnost, izbriši. **Desni klik v prazno**: zgradi
-  dur/mol/zmanjšan akord od tiste note.
-- **Tipke levo** so igralne — tap zaigra ton. **−8va / +8va** premakneta okno za oktavo.
-- **+ glasbilo** pod seznamom instrumentov doda nov melodični kanal.
+**Klaviatura** (za melodične loope)
 
-**Skladba** — bloki vzorcev na časovnici, kot playlist v FL Studiu.
-
-- **Klik v prazno polje** postavi izbrani vzorec.
-- **Vlečenje bloka** ga premakne, **desni klik** odpre meni (podvoji, zamenjaj vzorec, izbriši).
-- Vsak vzorec se ureja posebej v pogledu **Vzorec**; sprememba se pozna povsod, kjer je blok postavljen.
+- Navpično višina tona, vodoravno čas; **akord je več not druga nad drugo**.
+- **Vrstica akordov**: izberi tonaliteto (C…B, dur/mol) in klikni stopnjo (I, ii, IV, V …) —
+  trozvok se vstavi na kazalec in ga premakne naprej.
+- **Tipke levo** so igralne. **−8va / +8va** premakneta okno za oktavo.
+- **Desni klik na noto**: dolžina, glasnost, izbriši.
 
 **Ostalo**
 
-- **Tempo**: povleci številko gor/dol, klikni jo za vpis, ali trkaj ritem na **TAP**.
-- **Vzorci A/B/C…**: desni klik na zavihek za preimenovanje, podvojitev, barvo in dolžino (1/2/4 takte).
-- ⚙ odpre swing in glavno glasnost. Preslednica = play/stop.
+- **Tempo**: povleci številko gor/dol, klikni za vpis, ali trkaj ritem na **TAP**.
+- ⚙ odpre swing in glavno glasnost. Preslednica = play/stop, Esc = nazaj v paleto.
 - Vse se sproti shrani v brskalnik.
 
 ## Kako deluje
 
 Zvoki nastanejo sproti iz oscilatorjev in šuma ([src/audio/voices.ts](src/audio/voices.ts)) — nobenih
-sample datotek, zato se aplikacija odpre takoj in ima vsak instrument žive parametre.
+sample datotek. Tolkala so enkratni udarci, melodični glasovi imajo ADSR ovoj in trajanje note.
 
 Ritem vodi lookahead scheduler ([src/audio/engine.ts](src/audio/engine.ts)): `setInterval` vsakih 25 ms
-pogleda 120 ms naprej in dogodke pripne na vzorčno natančno uro `AudioContext`. Isti scheduler poganja
-oba načina — razlika je le, ali korak razreši v trenutni vzorec ali v bloke na časovnici.
+pogleda 120 ms naprej in dogodke pripne na vzorčno natančno uro `AudioContext`.
 
-Playhead se premika prek DOM-a v `requestAnimationFrame` ([src/hooks/usePlayhead.ts](src/hooks/usePlayhead.ts));
-v React state gre samo cel korak, sicer bi se ob vsakem okvirju prerisala cela mreža.
+Playhead in faze kartic se rišejo prek DOM-a v `requestAnimationFrame`
+([src/hooks/usePlayhead.ts](src/hooks/usePlayhead.ts)); v React state gre samo cel korak.
 
-Stanje skladbe je en objekt, ki ga spreminja reducer ([src/state/song.ts](src/state/song.ts)) — vsi
-ukazi menijev so navadne akcije, engine pa isti objekt bere prek ref-a in ga ni treba ustavljati.
+Stanje je en objekt z loopi, ki ga spreminja reducer ([src/state/song.ts](src/state/song.ts)).
+Tam je tudi `migrate()`, ki star zapis z vzorci razbije na posamezne loope.
 
 ## Razvoj
 

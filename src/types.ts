@@ -7,24 +7,9 @@ export interface Step {
   roll?: number
 }
 
-export interface Track {
-  /** ključ instrumenta, glej audio/instruments.ts */
-  voice: string
-  name: string
-  steps: Step[]
-  /** 0..1 */
-  level: number
-  /** polton offset, -12..12 */
-  tune: number
-  /** množitelj dolžine zvoka, 0.2..2 */
-  decay: number
-  muted: boolean
-  soloed: boolean
-}
-
 /** Nota na klavirski mreži. */
 export interface Note {
-  /** začetek v korakih od začetka vzorca */
+  /** začetek v korakih od začetka loopa */
   step: number
   /** MIDI višina (60 = C4) */
   midi: number
@@ -33,50 +18,35 @@ export interface Note {
   v: Vel
 }
 
-/** Melodični kanal — akordi in melodije, urejani v piano rollu. */
-export interface Melody {
-  id: string
-  voice: string
-  name: string
-  notes: Note[]
-  level: number
-  /** množitelj izzvena */
-  decay: number
-  muted: boolean
-  soloed: boolean
-}
+export type LoopKind = 'drum' | 'melody'
 
-export interface Pattern {
+/**
+ * Ena linija — najmanjša enota, ki jo lahko prižgeš ali ugasneš.
+ * Ritmični loop ima korake, melodični note; drugo je skupno.
+ */
+export interface Loop {
   id: string
   name: string
   color: string
+  kind: LoopKind
+  /** ključ glasu iz audio/voices.ts */
+  voice: string
   /** dolžina v korakih (16 = en takt) */
   length: number
-  tracks: Track[]
-  melodies: Melody[]
+  steps: Step[]
+  notes: Note[]
+  /** 0..1 */
+  level: number
+  /** polton offset (pri melodičnih transpozicija) */
+  tune: number
+  /** množitelj dolžine zvoka, 0.2..2 */
+  decay: number
+  /** ali loop trenutno igra */
+  active: boolean
 }
-
-/** Blok vzorca na časovnici skladbe. */
-export interface Clip {
-  id: string
-  patternId: string
-  /** vrstica na časovnici */
-  lane: number
-  /** začetek v taktih */
-  bar: number
-}
-
-export type Mode = 'pattern' | 'song'
 
 export interface Song {
-  patterns: Pattern[]
-  currentPattern: string
-  clips: Clip[]
-  /** število vrstic na časovnici */
-  lanes: number
-  /** dolžina časovnice v taktih */
-  bars: number
-  mode: Mode
+  loops: Loop[]
   bpm: number
   /** 0..0.6 — zamik lihih 16-tink */
   swing: number

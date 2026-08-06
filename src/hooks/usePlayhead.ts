@@ -17,14 +17,16 @@ export function usePlayhead(engine: Engine, totalSteps: number) {
     let last = -1
 
     const loop = () => {
-      const p = engine.position()
+      // ura teče neprekinjeno naprej, mreža pa se ponavlja — zato ovijemo
+      const raw = engine.position()
+      const p = raw < 0 ? raw : raw % totalSteps
       const line = lineRef.current
       if (line) {
         line.style.opacity = p < 0 ? '0' : '1'
         if (p >= 0) line.style.left = `${(p / totalSteps) * 100}%`
       }
 
-      const s = p < 0 ? -1 : Math.floor(p) % totalSteps
+      const s = p < 0 ? -1 : Math.floor(p)
       if (s !== last) {
         last = s
         setStep(s)

@@ -1,4 +1,4 @@
-import type { Step, Track, Vel } from '../types'
+import type { Step, Vel } from '../types'
 
 export interface InstrumentDef {
   voice: string
@@ -64,18 +64,4 @@ export function parseSteps(s: string, length: number): Step[] {
     const c = s[i]
     return { v: (c === 'X' ? 3 : c === 'x' ? 2 : c === 'o' ? 1 : 0) as Vel }
   })
-}
-
-export function makeTrack(voice: string, pattern = '', length = 16): Track {
-  const def = instrumentOf(voice)
-  return {
-    voice,
-    name: def.name,
-    steps: parseSteps(pattern, length),
-    level: def.level,
-    tune: def.tune,
-    decay: 1,
-    muted: false,
-    soloed: false,
-  }
 }

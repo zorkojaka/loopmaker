@@ -1,31 +1,51 @@
-import { INSTRUMENTS, emptySteps, makeTrack, melodicOf } from '../audio/instruments'
-import type { Clip, Melody, Note, Pattern, Song, Step, Track, Vel } from '../types'
+import { INSTRUMENTS, MELODIC, emptySteps, instrumentOf, melodicOf, parseSteps } from '../audio/instruments'
+import type { Loop, LoopKind, Note, Song, Step, Vel } from '../types'
 import { STEPS_PER_BAR } from '../types'
-
-export const PATTERN_COLORS = ['#6ee7ff', '#ff8fab', '#ffd166', '#a0e548', '#c792ea', '#ff9f5a', '#5ad1c2', '#f56565']
 
 let idSeq = 0
 const uid = (prefix: string) => `${prefix}${Date.now().toString(36)}${(idSeq++).toString(36)}`
 
-export const barsOf = (p: Pattern) => Math.max(1, Math.round(p.length / STEPS_PER_BAR))
-export const patternById = (song: Song, id: string) => song.patterns.find((p) => p.id === id)
-export const currentPattern = (song: Song) => patternById(song, song.currentPattern) ?? song.patterns[0]
+export const barsOf = (loop: Loop) => Math.max(1, Math.round(loop.length / STEPS_PER_BAR))
+export const loopById = (song: Song, id: string | null) => song.loops.find((l) => l.id === id)
+export const drumLoops = (song: Song) => song.loops.filter((l) => l.kind === 'drum')
 
-export function makeMelody(voice: string, notes: Note[] = []): Melody {
-  const def = melodicOf(voice)
-  return { id: uid('m'), voice, name: def.name, notes, level: def.level, decay: 1, muted: false, soloed: false }
+/** Najdaljši loop določa širino mreže v urejevalniku. */
+export const gridLength = (song: Song) =>
+  Math.max(STEPS_PER_BAR, ...song.loops.filter((l) => l.kind === 'drum').map((l) => l.length))
+
+/** Kopija loopa z novo identiteto — za gumb "Podvoji". */
+export function cloneLoop(loop: Loop): Loop {
+  return { ...structuredClone(loop), id: uid('l') }
 }
 
-function makePattern(name: string, colorIndex: number, rows: string[] = [], melodies: Melody[] = [], length = 16): Pattern {
+export function makeLoop(voice: string, kind: LoopKind, opts: Partial<Loop> = {}): Loop {
+  const def = kind === 'drum' ? instrumentOf(voice) : melodicOf(voice)
+  const length = opts.length ?? STEPS_PER_BAR
   return {
-    id: uid('p'),
-    name,
-    color: PATTERN_COLORS[colorIndex % PATTERN_COLORS.length],
+    id: uid('l'),
+    name: opts.name ?? def.name,
+    color: def.color,
+    kind,
+    voice,
     length,
-    tracks: INSTRUMENTS.map((inst, i) => makeTrack(inst.voice, rows[i] ?? '', length)),
-    melodies: melodies.length ? melodies : [makeMelody('piano'), makeMelody('flute')],
+    steps: opts.steps ?? emptySteps(length),
+    notes: opts.notes ?? [],
+    level: opts.level ?? def.level,
+    tune: opts.tune ?? 0,
+    decay: opts.decay ?? 1,
+    active: opts.active ?? true,
   }
 }
+
+const drum = (voice: string, pattern: string, active = true, length = STEPS_PER_BAR) =>
+  makeLoop(voice, 'drum', { steps: parseSteps(pattern, length), length, active })
+
+/** Skupina not, ki se začnejo hkrati — akord ali posamezen ton. */
+const chord = (step: number, midis: number[], len: number, v: Vel = 2): Note[] =>
+  midis.map((midi) => ({ step, midi, len, v }))
+
+const melody = (voice: string, name: string, notes: Note[], active = true, length = STEPS_PER_BAR) =>
+  makeLoop(voice, 'melody', { notes, name, length, active })
 
 /** Akord kot MIDI note: koren + kvaliteta. */
 export function chordNotes(root: number, quality: 'dur' | 'mol' | 'zmanjšan'): number[] {
@@ -50,129 +70,130 @@ export function diatonicChords(root: number, mode: 'dur' | 'mol') {
   }))
 }
 
-/** Skupina not, ki se začnejo hkrati — akord ali posamezen ton. */
-const note = (step: number, midis: number[], len: number, v: Vel = 2): Note[] =>
-  midis.map((midi) => ({ step, midi, len, v }))
-
 export function defaultSong(): Song {
-  const beat = makePattern('Beat', 0, [
-    'X...x...X.......',
-    '....X.......X...',
-    '................',
-    'x.o.x.o.x.oxx.o.',
-    '......x.......x.',
-    '................',
-    '................',
-    'X..x..X...x..X..',
-    '................',
-  ], [
-    // C-dur in a-mol akord, vsak pol takta
-    makeMelody('piano', [...note(0, [60, 64, 67], 8), ...note(8, [57, 60, 64], 8)]),
-    makeMelody('flute'),
-  ])
-  const fill = makePattern('Fill', 1, [
-    'X.......X...X.X.',
-    '....X...x.x.XxXx',
-    '................',
-    'x.x.x.x.x.x.....',
-    '................',
-    '........x.x.x.x.',
-    '................',
-    'X.....X.....X...',
-    '................',
-  ])
-  const hook = makePattern('Hook', 2, [
-    'X...x...X...x...',
-    '....X.......X...',
-    '....x.......x...',
-    'x.x.x.x.x.x.x.x.',
-    '................',
-    '................',
-    '................',
-    'X..x..X...x..X..',
-    'x...x.x...x.x...',
-  ], [
-    makeMelody('piano', [...note(0, [65, 69, 72], 8), ...note(8, [67, 71, 74], 8)]),
-    makeMelody('flute', [...note(0, [72], 3), ...note(4, [76], 3), ...note(8, [79], 4), ...note(13, [76], 3)]),
-  ])
-
-  const clips: Clip[] = [
-    { id: uid('c'), patternId: beat.id, lane: 0, bar: 0 },
-    { id: uid('c'), patternId: beat.id, lane: 0, bar: 1 },
-    { id: uid('c'), patternId: hook.id, lane: 1, bar: 2 },
-    { id: uid('c'), patternId: fill.id, lane: 2, bar: 3 },
-  ]
-
   return {
-    patterns: [beat, fill, hook],
-    currentPattern: beat.id,
-    clips,
-    lanes: 5,
-    bars: 16,
-    mode: 'pattern',
+    loops: [
+      drum('kick', 'X...x...X.......'),
+      drum('snare', '....X.......X...'),
+      drum('hat', 'x.o.x.o.x.oxx.o.'),
+      drum('openhat', '......x.......x.', false),
+      drum('clap', '....X.......X.X.', false),
+      drum('bass', 'X..x..X...x..X..'),
+      melody('piano', 'Akordi', [...chord(0, [60, 64, 67], 8), ...chord(8, [57, 60, 64], 8)]),
+      melody('flute', 'Flavta', [...chord(0, [72], 3), ...chord(4, [76], 3), ...chord(8, [79], 4), ...chord(13, [76], 3)], false),
+    ],
     bpm: 96,
     swing: 0.12,
     master: 0.8,
   }
 }
 
-/** Zadnji zaseden takt na časovnici — do sem se skladba vrti. */
-export function songLengthBars(song: Song): number {
-  let end = 0
-  for (const clip of song.clips) {
-    const p = patternById(song, clip.patternId)
-    if (p) end = Math.max(end, clip.bar + barsOf(p))
-  }
-  return Math.max(1, end)
+// --- prevzem starejšega zapisa -------------------------------------------
+
+interface OldTrack {
+  voice: string
+  name: string
+  steps: Step[]
+  level?: number
+  tune?: number
+  decay?: number
+}
+interface OldMelody {
+  voice: string
+  name: string
+  notes: Note[]
+  level?: number
+  decay?: number
+}
+interface OldPattern {
+  name: string
+  length?: number
+  tracks?: OldTrack[]
+  melodies?: OldMelody[]
+}
+interface OldSong {
+  patterns?: OldPattern[]
+  bpm?: number
+  swing?: number
+  master?: number
 }
 
-export function clipAt(song: Song, lane: number, bar: number): Clip | undefined {
-  return song.clips.find((c) => {
-    const p = patternById(song, c.patternId)
-    return !!p && c.lane === lane && bar >= c.bar && bar < c.bar + barsOf(p)
+/**
+ * Star zapis je imel vzorce z devetimi vrstami; nov model pozna samo loope.
+ * Vsaka neprazna vrsta postane svoj loop, da uporabnik ne izgubi dela.
+ */
+export function migrate(old: OldSong): Song {
+  const patterns = old.patterns ?? []
+  const many = patterns.length > 1
+  const loops: Loop[] = []
+
+  patterns.forEach((pattern, pi) => {
+    const length = pattern.length ?? STEPS_PER_BAR
+    const suffix = many ? ` · ${pattern.name}` : ''
+
+    for (const track of pattern.tracks ?? []) {
+      if (!track.steps?.some((s) => s?.v)) continue
+      loops.push(
+        makeLoop(track.voice, 'drum', {
+          name: `${track.name}${suffix}`,
+          steps: track.steps,
+          length,
+          level: track.level,
+          tune: track.tune,
+          decay: track.decay,
+          active: pi === 0,
+        }),
+      )
+    }
+
+    for (const melody of pattern.melodies ?? []) {
+      if (!melody.notes?.length) continue
+      loops.push(
+        makeLoop(melody.voice, 'melody', {
+          name: `${melody.name}${suffix}`,
+          notes: melody.notes,
+          length,
+          level: melody.level,
+          decay: melody.decay,
+          active: pi === 0,
+        }),
+      )
+    }
   })
+
+  if (!loops.length) return defaultSong()
+  return { loops, bpm: old.bpm ?? 96, swing: old.swing ?? 0.12, master: old.master ?? 0.8 }
 }
 
 // --- akcije --------------------------------------------------------------
 
 export type Action =
   | { t: 'song'; patch: Partial<Song> }
-  | { t: 'step'; track: number; step: number; value: Step }
-  | { t: 'track'; track: number; patch: Partial<Track> }
-  | { t: 'rowClear'; track: number }
-  | { t: 'rowFill'; track: number; every: number; v: Vel }
-  | { t: 'noteAdd'; melody: number; notes: Note[] }
-  | { t: 'noteRemove'; melody: number; step: number; midi: number }
-  | { t: 'notePatch'; melody: number; step: number; midi: number; patch: Partial<Note> }
-  | { t: 'melodyPatch'; melody: number; patch: Partial<Melody> }
-  | { t: 'melodyAdd'; voice: string }
-  | { t: 'melodyClear'; melody: number }
-  | { t: 'melodyDelete'; melody: number }
-  | { t: 'melodyTranspose'; melody: number; by: number }
-  | { t: 'patternSelect'; id: string }
-  | { t: 'patternAdd' }
-  | { t: 'patternPatch'; id: string; patch: Partial<Pattern> }
-  | { t: 'patternLength'; id: string; length: number }
-  | { t: 'patternDuplicate'; id: string }
-  | { t: 'patternClear'; id: string }
-  | { t: 'patternDelete'; id: string }
-  | { t: 'clipPlace'; lane: number; bar: number; patternId: string }
-  | { t: 'clipMove'; id: string; lane: number; bar: number }
-  | { t: 'clipDelete'; id: string }
-  | { t: 'clipDuplicate'; id: string }
+  | { t: 'loopInsert'; loop: Loop; after?: string }
+  | { t: 'loopPatch'; id: string; patch: Partial<Loop> }
+  | { t: 'loopToggle'; id: string }
+  | { t: 'loopOnly'; id: string }
+  | { t: 'loopsAll'; active: boolean }
+  | { t: 'loopDelete'; id: string }
+  | { t: 'loopClear'; id: string }
+  | { t: 'loopLength'; id: string; length: number }
+  | { t: 'step'; id: string; step: number; value: Step }
+  | { t: 'rowFill'; id: string; every: number; v: Vel }
+  | { t: 'noteAdd'; id: string; notes: Note[] }
+  | { t: 'noteRemove'; id: string; step: number; midi: number }
+  | { t: 'notePatch'; id: string; step: number; midi: number; patch: Partial<Note> }
   | { t: 'reset' }
 
-/** Preslika trenutni vzorec — vse urejanje mreže gre skozi to pot. */
-function mapCurrent(song: Song, fn: (p: Pattern) => Pattern): Song {
-  return { ...song, patterns: song.patterns.map((p) => (p.id === song.currentPattern ? fn(p) : p)) }
+function mapLoop(song: Song, id: string, fn: (l: Loop) => Loop): Song {
+  return { ...song, loops: song.loops.map((l) => (l.id === id ? fn(l) : l)) }
 }
 
-function mapTracks(p: Pattern, index: number, fn: (t: Track) => Track): Pattern {
-  return { ...p, tracks: p.tracks.map((t, i) => (i === index ? fn(t) : t)) }
-}
-
-function mapMelody(song: Song, index: number, fn: (m: Melody) => Melody): Song {
-  return mapCurrent(song, (p) => ({ ...p, melodies: p.melodies.map((m, i) => (i === index ? fn(m) : m)) }))
+/** Nov loop dobi ime z zaporedno številko, če glasbilo že obstaja. */
+function uniqueName(song: Song, base: string): string {
+  if (!song.loops.some((l) => l.name === base)) return base
+  let n = 2
+  while (song.loops.some((l) => l.name === `${base} ${n}`)) n++
+  return `${base} ${n}`
 }
 
 export function reducer(song: Song, a: Action): Song {
@@ -180,166 +201,79 @@ export function reducer(song: Song, a: Action): Song {
     case 'song':
       return { ...song, ...a.patch }
 
+    case 'loopInsert': {
+      const loop = { ...a.loop, name: uniqueName(song, a.loop.name) }
+      const src = loopById(song, a.after ?? null)
+      const at = src ? song.loops.indexOf(src) + 1 : song.loops.length
+      return { ...song, loops: [...song.loops.slice(0, at), loop, ...song.loops.slice(at)] }
+    }
+
+    case 'loopPatch':
+      return mapLoop(song, a.id, (l) => ({ ...l, ...a.patch }))
+
+    case 'loopToggle':
+      return mapLoop(song, a.id, (l) => ({ ...l, active: !l.active }))
+
+    case 'loopOnly':
+      return { ...song, loops: song.loops.map((l) => ({ ...l, active: l.id === a.id })) }
+
+    case 'loopsAll':
+      return { ...song, loops: song.loops.map((l) => ({ ...l, active: a.active })) }
+
+    case 'loopDelete':
+      return { ...song, loops: song.loops.filter((l) => l.id !== a.id) }
+
+    case 'loopClear':
+      return mapLoop(song, a.id, (l) => ({ ...l, steps: emptySteps(l.length), notes: [] }))
+
+    case 'loopLength':
+      return mapLoop(song, a.id, (l) => ({
+        ...l,
+        length: a.length,
+        // krajšanje odreže konec, daljšanje ponovi obstoječi del
+        steps: Array.from({ length: a.length }, (_, i) => l.steps[i % l.steps.length] ?? { v: 0 as Vel }),
+        notes: l.notes.filter((n) => n.step < a.length),
+      }))
+
     case 'step':
-      return mapCurrent(song, (p) => {
-        const cur = p.tracks[a.track].steps[a.step]
-        if (cur.v === a.value.v && (cur.roll ?? 1) === (a.value.roll ?? 1)) return p
-        return mapTracks(p, a.track, (t) => ({
-          ...t,
-          steps: t.steps.map((s, i) => (i === a.step ? a.value : s)),
-        }))
+      return mapLoop(song, a.id, (l) => {
+        const cur = l.steps[a.step]
+        if (cur && cur.v === a.value.v && (cur.roll ?? 1) === (a.value.roll ?? 1)) return l
+        return { ...l, steps: l.steps.map((s, i) => (i === a.step ? a.value : s)) }
       })
 
-    case 'track':
-      return mapCurrent(song, (p) => mapTracks(p, a.track, (t) => ({ ...t, ...a.patch })))
-
-    case 'rowClear':
-      return mapCurrent(song, (p) => mapTracks(p, a.track, (t) => ({ ...t, steps: emptySteps(p.length) })))
-
     case 'rowFill':
-      return mapCurrent(song, (p) =>
-        mapTracks(p, a.track, (t) => ({
-          ...t,
-          steps: t.steps.map((s, i) => (i % a.every === 0 ? { v: a.v } : s)),
-        })),
-      )
+      return mapLoop(song, a.id, (l) => ({
+        ...l,
+        steps: l.steps.map((s, i) => (i % a.every === 0 ? { v: a.v } : s)),
+      }))
 
     case 'noteAdd':
-      return mapMelody(song, a.melody, (m) => ({
-        ...m,
+      return mapLoop(song, a.id, (l) => ({
+        ...l,
         // ista višina na istem koraku obstaja samo enkrat
-        notes: [...m.notes.filter((n) => !a.notes.some((x) => x.step === n.step && x.midi === n.midi)), ...a.notes],
+        notes: [...l.notes.filter((n) => !a.notes.some((x) => x.step === n.step && x.midi === n.midi)), ...a.notes],
       }))
 
     case 'noteRemove':
-      return mapMelody(song, a.melody, (m) => ({
-        ...m,
-        notes: m.notes.filter((n) => !(n.step === a.step && n.midi === a.midi)),
+      return mapLoop(song, a.id, (l) => ({
+        ...l,
+        notes: l.notes.filter((n) => !(n.step === a.step && n.midi === a.midi)),
       }))
 
     case 'notePatch':
-      return mapMelody(song, a.melody, (m) => ({
-        ...m,
-        notes: m.notes.map((n) => (n.step === a.step && n.midi === a.midi ? { ...n, ...a.patch } : n)),
+      return mapLoop(song, a.id, (l) => ({
+        ...l,
+        notes: l.notes.map((n) => (n.step === a.step && n.midi === a.midi ? { ...n, ...a.patch } : n)),
       }))
-
-    case 'melodyPatch':
-      return mapMelody(song, a.melody, (m) => ({ ...m, ...a.patch }))
-
-    case 'melodyClear':
-      return mapMelody(song, a.melody, (m) => ({ ...m, notes: [] }))
-
-    case 'melodyTranspose':
-      return mapMelody(song, a.melody, (m) => ({
-        ...m,
-        notes: m.notes.map((n) => ({ ...n, midi: Math.min(108, Math.max(21, n.midi + a.by)) })),
-      }))
-
-    case 'melodyAdd':
-      return mapCurrent(song, (p) => ({ ...p, melodies: [...p.melodies, makeMelody(a.voice)] }))
-
-    case 'melodyDelete':
-      return mapCurrent(song, (p) => ({ ...p, melodies: p.melodies.filter((_, i) => i !== a.melody) }))
-
-    case 'patternSelect':
-      return { ...song, currentPattern: a.id }
-
-    case 'patternAdd': {
-      const p = makePattern(`Vzorec ${song.patterns.length + 1}`, song.patterns.length)
-      return { ...song, patterns: [...song.patterns, p], currentPattern: p.id }
-    }
-
-    case 'patternPatch':
-      return { ...song, patterns: song.patterns.map((p) => (p.id === a.id ? { ...p, ...a.patch } : p)) }
-
-    case 'patternLength':
-      return {
-        ...song,
-        patterns: song.patterns.map((p) => {
-          if (p.id !== a.id) return p
-          return {
-            ...p,
-            length: a.length,
-            tracks: p.tracks.map((t) => ({
-              ...t,
-              // krajšanje odreže konec, daljšanje ponovi obstoječi del
-              steps: Array.from({ length: a.length }, (_, i) => t.steps[i % t.steps.length] ?? { v: 0 as Vel }),
-            })),
-          }
-        }),
-      }
-
-    case 'patternDuplicate': {
-      const src = patternById(song, a.id)
-      if (!src) return song
-      const copy: Pattern = {
-        ...structuredClone(src),
-        id: uid('p'),
-        name: `${src.name} 2`,
-        color: PATTERN_COLORS[song.patterns.length % PATTERN_COLORS.length],
-      }
-      return { ...song, patterns: [...song.patterns, copy], currentPattern: copy.id }
-    }
-
-    case 'patternClear':
-      return {
-        ...song,
-        patterns: song.patterns.map((p) =>
-          p.id === a.id ? { ...p, tracks: p.tracks.map((t) => ({ ...t, steps: emptySteps(p.length) })) } : p,
-        ),
-      }
-
-    case 'patternDelete': {
-      if (song.patterns.length <= 1) return song
-      const patterns = song.patterns.filter((p) => p.id !== a.id)
-      return {
-        ...song,
-        patterns,
-        clips: song.clips.filter((c) => c.patternId !== a.id),
-        currentPattern: song.currentPattern === a.id ? patterns[0].id : song.currentPattern,
-      }
-    }
-
-    case 'clipPlace': {
-      const p = patternById(song, a.patternId)
-      if (!p) return song
-      const span = barsOf(p)
-      // najprej umakni vse, kar bi se prekrivalo
-      const clips = song.clips.filter((c) => {
-        if (c.lane !== a.lane) return true
-        const cp = patternById(song, c.patternId)
-        const cSpan = cp ? barsOf(cp) : 1
-        return c.bar + cSpan <= a.bar || c.bar >= a.bar + span
-      })
-      return { ...song, clips: [...clips, { id: uid('c'), patternId: a.patternId, lane: a.lane, bar: a.bar }] }
-    }
-
-    case 'clipMove': {
-      const moving = song.clips.find((c) => c.id === a.id)
-      if (!moving) return song
-      const p = patternById(song, moving.patternId)
-      const span = p ? barsOf(p) : 1
-      const clips = song.clips.filter((c) => {
-        if (c.id === a.id || c.lane !== a.lane) return true
-        const cp = patternById(song, c.patternId)
-        const cSpan = cp ? barsOf(cp) : 1
-        return c.bar + cSpan <= a.bar || c.bar >= a.bar + span
-      })
-      return { ...song, clips: clips.map((c) => (c.id === a.id ? { ...c, lane: a.lane, bar: a.bar } : c)) }
-    }
-
-    case 'clipDelete':
-      return { ...song, clips: song.clips.filter((c) => c.id !== a.id) }
-
-    case 'clipDuplicate': {
-      const src = song.clips.find((c) => c.id === a.id)
-      if (!src) return song
-      const p = patternById(song, src.patternId)
-      const span = p ? barsOf(p) : 1
-      return { ...song, clips: [...song.clips, { ...src, id: uid('c'), bar: src.bar + span }] }
-    }
 
     case 'reset':
       return defaultSong()
   }
 }
+
+/** Vsi glasovi, med katerimi lahko izbiraš ob dodajanju loopa. */
+export const LOOP_CHOICES = [
+  ...INSTRUMENTS.map((i) => ({ voice: i.voice, name: i.name, kind: 'drum' as LoopKind, color: i.color })),
+  ...MELODIC.map((i) => ({ voice: i.voice, name: i.name, kind: 'melody' as LoopKind, color: i.color })),
+]

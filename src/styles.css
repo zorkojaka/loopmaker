@@ -8,11 +8,9 @@
   --dim: #838da6;
   --accent: #6ee7ff;
   --track: #6ee7ff;
-  --pattern: #6ee7ff;
 
   --gutter: 96px;
   --cell-h: 32px;
-  --lane-h: 46px;
   --note-h: 22px;
   --ruler-h: 22px;
   --gap: 4px;
@@ -137,31 +135,6 @@ button:active {
   padding: 10px 8px;
 }
 
-.modes {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
-  padding: 3px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-}
-
-.mode {
-  border: none;
-  background: transparent;
-  color: var(--dim);
-  font-size: 13px;
-  padding: 7px 12px;
-  border-radius: 9px;
-}
-
-.mode--on {
-  background: var(--panel-2);
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-
 .mix {
   position: relative;
 }
@@ -199,69 +172,266 @@ button:active {
   color: var(--dim);
 }
 
-/* --- pas vzorcev --------------------------------------------------------- */
-
-.tabs {
+.topbar__count {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
+  flex-direction: column;
+  line-height: 1.05;
+  margin-left: 4px;
 }
 
-.tabs__title {
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.topbar__count strong {
+  font-size: 18px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.topbar__count span {
+  font-size: 9px;
+  letter-spacing: 0.1em;
   color: var(--dim);
-  flex: none;
+  text-transform: uppercase;
 }
 
-.tabs__list {
+/* --- paleta loopov -------------------------------------------------------- */
+
+.palette {
   display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
 }
 
-.tabs__list::-webkit-scrollbar {
-  display: none;
+.palette__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
 }
 
-.tab {
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: border-color 120ms, background 120ms;
+}
+
+.card--on {
+  background: color-mix(in srgb, var(--track) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--track) 55%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--track) 18%, transparent);
+}
+
+.card:active {
+  transform: translateY(1px);
+}
+
+.card__head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+}
+
+.card__dot {
+  width: 10px;
+  height: 10px;
   flex: none;
-  padding: 7px 11px;
+  border-radius: 50%;
+  background: var(--track);
+  opacity: 0.45;
+}
+
+.card--on .card__dot {
+  opacity: 1;
+  box-shadow: 0 0 10px var(--track);
+}
+
+.card__name {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card__edit {
+  margin-left: auto;
+  padding: 4px 8px;
   font-size: 13px;
   color: var(--dim);
-  background: var(--bg);
+  background: transparent;
+  border-color: transparent;
 }
 
-.tab__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--pattern);
-}
-
-.tab em {
-  font-style: normal;
-  font-size: 10px;
-  opacity: 0.7;
-}
-
-.tab--on {
+.card__edit:hover {
   color: var(--text);
-  border-color: var(--pattern);
-  background: color-mix(in srgb, var(--pattern) 14%, var(--bg));
+  border-color: var(--line);
 }
 
-.tab--add {
+.card__mini {
+  display: flex;
+  gap: 2px;
+  height: 22px;
+  align-items: stretch;
+}
+
+.mini {
+  flex: 1;
+  min-width: 0;
+  border-radius: 2px;
+  background: #1b2030;
+}
+
+.mini--beat {
+  background: #232a3d;
+}
+
+.mini--v1 {
+  background: color-mix(in srgb, var(--track) 35%, #0d1019);
+}
+
+.mini--v2 {
+  background: color-mix(in srgb, var(--track) 70%, #0d1019);
+}
+
+.mini--v3 {
+  background: var(--track);
+}
+
+.card__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 4px 8px;
+  border-radius: 999px;
   color: var(--dim);
-  padding: 7px 12px;
+  background: var(--panel-2);
+}
+
+.badge--on {
+  color: #06222a;
+  background: var(--track);
+}
+
+.card__meta {
+  font-size: 11px;
+  color: var(--dim);
+  margin-left: auto;
+}
+
+.card__phase {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: transparent;
+}
+
+.card__phase i {
+  display: block;
+  height: 100%;
+  background: var(--track);
+  opacity: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+
+.card--add {
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 118px;
+  color: var(--dim);
+  background: transparent;
+  border-style: dashed;
+  font-size: 13px;
+}
+
+.card--add span {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.palette__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.palette__hint {
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
+/* --- urejevalnik ---------------------------------------------------------- */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editor__bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.editor__title {
+  font-weight: 700;
+  color: var(--track);
+  padding: 0 4px;
+}
+
+.editor__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
+
+.editor__meta {
+  font-size: 11px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.editor__note {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
+.glabel--off {
+  opacity: 0.45;
+}
+
+.row--off .cell {
+  opacity: 0.5;
+}
+
+.cell--repeat {
+  opacity: 0.55;
 }
 
 /* --- časovnica (skupno za vzorec in skladbo) ----------------------------- */
@@ -347,14 +517,6 @@ button:active {
   font-style: normal;
   font-size: 10px;
   color: var(--accent);
-}
-
-.glabel--lane {
-  height: var(--lane-h);
-  justify-content: center;
-  font-variant-numeric: tabular-nums;
-  border: 1px dashed var(--line-soft);
-  border-radius: 10px;
 }
 
 .timeline__scroll {
@@ -459,49 +621,6 @@ button:active {
   font-weight: 700;
   color: #0b0e16;
   opacity: 0.75;
-}
-
-/* --- pogled skladbe ------------------------------------------------------ */
-
-.rows--song .row--lane {
-  height: var(--lane-h);
-}
-
-.slot {
-  height: var(--lane-h);
-  border-radius: 10px;
-  border: 1px dashed var(--line-soft);
-  background: #10131d;
-}
-
-.slot--play {
-  background: #161b2a;
-  border-color: var(--line);
-}
-
-.clip {
-  position: absolute;
-  top: 4px;
-  bottom: 4px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  font-size: 12px;
-  font-weight: 600;
-  text-align: left;
-  color: var(--pattern);
-  background: color-mix(in srgb, var(--pattern) 22%, #0d1019);
-  border: 1px solid color-mix(in srgb, var(--pattern) 60%, transparent);
-  border-radius: 10px;
-  overflow: hidden;
-  touch-action: none;
-}
-
-.clip--on {
-  color: #07131a;
-  background: var(--pattern);
-  border-color: #fff;
-  box-shadow: 0 0 14px color-mix(in srgb, var(--pattern) 45%, transparent);
 }
 
 /* --- klaviatura (piano roll) --------------------------------------------- */
@@ -866,13 +985,11 @@ button:active {
     flex-wrap: wrap;
   }
 
-  .modes {
-    order: 3;
-    margin-left: 0;
+  .mix {
+    margin-left: auto;
   }
 
-  .mix {
-    order: 4;
-    margin-left: auto;
+  .palette__grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
 }

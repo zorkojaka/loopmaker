@@ -1,41 +1,37 @@
 import { useState } from 'react'
 import type { CSSProperties, Dispatch } from 'react'
 import type { Engine } from '../audio/engine'
-import { isBlackKey, melodicOf, midiName } from '../audio/instruments'
+import { isBlackKey, midiName } from '../audio/instruments'
 import { usePlayhead } from '../hooks/usePlayhead'
 import { longPress } from '../hooks/longPress'
 import { chordNotes, diatonicChords } from '../state/song'
 import type { Action } from '../state/song'
-import type { Melody, Note, Pattern, Vel } from '../types'
+import type { Loop, Note, Vel } from '../types'
 import type { MenuItem } from './ContextMenu'
 
 interface Props {
-  pattern: Pattern
-  melodyIndex: number
+  loop: Loop
   engine: Engine
   dispatch: Dispatch<Action>
-  openMenu: (x: number, y: number, items: MenuItem[]) => void
   onBack: () => void
+  openMenu: (x: number, y: number, items: MenuItem[]) => void
 }
 
 const ROWS = 24
 const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const LENGTHS = [1, 2, 4, 8]
 
-/** Klavirska mreža: navpično višina tona, vodoravno čas. Akordi so noti druga nad drugo. */
-export function PianoRoll({ pattern, melodyIndex, engine, dispatch, openMenu, onBack }: Props) {
-  const melody: Melody | undefined = pattern.melodies[melodyIndex]
+/** Klavirska mreža: navpično višina tona, vodoravno čas. Akordi so note druga nad drugo. */
+export function PianoRoll({ loop, engine, dispatch, onBack, openMenu }: Props) {
   const [low, setLow] = useState(48) // C3
   const [len, setLen] = useState(4)
   const [caret, setCaret] = useState(0)
   const [root, setRoot] = useState(0) // C
   const [mode, setMode] = useState<'dur' | 'mol'>('dur')
 
-  const { lineRef, scrollRef, step: playStep } = usePlayhead(engine, pattern.length)
+  const { lineRef, scrollRef, step: playStep } = usePlayhead(engine, loop.length)
 
-  if (!melody) return null
-  const def = melodicOf(melody.voice)
-  const columns: CSSProperties = { gridTemplateColumns: `repeat(${pattern.length}, minmax(26px, 1fr))` }
+  const columns: CSSProperties = { gridTemplateColumns: `repeat(${loop.length}, minmax(26px, 1fr))` }
   const rows = Array.from({ length: ROWS }, (_, i) => low + ROWS - 1 - i)
   const chordBase = low + 12 + root
 
@@ -53,13 +49,13 @@ export function PianoRoll({ pattern, melodyIndex, engine, dispatch, openMenu, on
   const addNotes = (step: number, midis: number[], velocity: Vel = 2) => {
     const fitted = midis.map(fit)
     const notes: Note[] = fitted.map((midi) => ({ step, midi, len, v: velocity }))
-    dispatch({ t: 'noteAdd', melody: melodyIndex, notes })
-    if (!engine.playing) fitted.forEach((m) => void engine.previewNote(melody.voice, m, melody.level))
+    dispatch({ t: 'noteAdd', id: loop.id, notes })
+    if (!engine.playing) fitted.forEach((m) => void engine.previewNote(loop.voice, m + loop.tune, loop.level))
   }
 
   const stampChord = (midis: number[]) => {
     addNotes(caret, midis)
-    setCaret((c) => (c + len) % pattern.length)
+    setCaret((c) => (c + len) % loop.length)
   }
 
   const noteMenu = (n: Note): MenuItem[] => [
@@ -68,16 +64,16 @@ export function PianoRoll({ pattern, melodyIndex, engine, dispatch, openMenu, on
     ...LENGTHS.map((l) => ({
       label: l === 1 ? '1 korak' : `${l} korakov`,
       checked: n.len === l,
-      onClick: () => dispatch({ t: 'notePatch', melody: melodyIndex, step: n.step, midi: n.midi, patch: { len: l } }),
+      onClick: () => dispatch({ t: 'notePatch', id: loop.id, step: n.step, midi: n.midi, patch: { len: l } }),
     })),
     { separator: true },
     ...([1, 2, 3] as Vel[]).map((v) => ({
       label: v === 1 ? 'Tiho' : v === 2 ? 'Normalno' : 'Glasno',
       checked: n.v === v,
-      onClick: () => dispatch({ t: 'notePatch', melody: melodyIndex, step: n.step, midi: n.midi, patch: { v } }),
+      onClick: () => dispatch({ t: 'notePatch', id: loop.id, step: n.step, midi: n.midi, patch: { v } }),
     })),
     { separator: true },
-    { label: 'Izbriši noto', danger: true, onClick: () => dispatch({ t: 'noteRemove', melody: melodyIndex, step: n.step, midi: n.midi }) },
+    { label: 'Izbriši noto', danger: true, onClick: () => dispatch({ t: 'noteRemove', id: loop.id, step: n.step, midi: n.midi }) },
   ]
 
   const emptyMenu = (step: number, midi: number): MenuItem[] => [
@@ -91,25 +87,28 @@ export function PianoRoll({ pattern, melodyIndex, engine, dispatch, openMenu, on
   ]
 
   return (
-    <div className="roll">
-      <div className="roll__bar">
+    <div className="editor">
+      <div className="editor__bar">
         <button className="chip" onClick={onBack}>
-          ← Mreža
+          ← Paleta
         </button>
-        <span className="roll__name" style={{ '--track': def.color } as CSSProperties}>
-          {melody.name}
+        <span className="editor__title" style={{ '--track': loop.color } as CSSProperties}>
+          {loop.name}
         </span>
-        <div className="roll__group">
+        <button className={`chip${loop.active ? ' chip--on' : ''}`} onClick={() => dispatch({ t: 'loopToggle', id: loop.id })}>
+          {loop.active ? 'Igra' : 'Izklop'}
+        </button>
+        <div className="editor__group">
           <button className="chip" onClick={() => setLow((v) => Math.max(24, v - 12))}>
             −8va
           </button>
-          <span className="roll__meta">{midiName(low)}</span>
+          <span className="editor__meta">{midiName(low)}</span>
           <button className="chip" onClick={() => setLow((v) => Math.min(84, v + 12))}>
             +8va
           </button>
         </div>
-        <div className="roll__group">
-          <span className="roll__meta">Dolžina</span>
+        <div className="editor__group">
+          <span className="editor__meta">Nota</span>
           {LENGTHS.map((l) => (
             <button key={l} className={`chip${len === l ? ' chip--on' : ''}`} onClick={() => setLen(l)}>
               {l}
@@ -150,9 +149,9 @@ export function PianoRoll({ pattern, melodyIndex, engine, dispatch, openMenu, on
             <button
               key={midi}
               className={`key${isBlackKey(midi) ? ' key--black' : ''}`}
-              onClick={() => void engine.previewNote(melody.voice, midi, melody.level)}
+              onClick={() => void engine.previewNote(loop.voice, midi + loop.tune, loop.level)}
             >
-              {midi % 12 === 0 || !isBlackKey(midi) ? midiName(midi) : ''}
+              {isBlackKey(midi) ? '' : midiName(midi)}
             </button>
           ))}
         </div>
@@ -160,7 +159,7 @@ export function PianoRoll({ pattern, melodyIndex, engine, dispatch, openMenu, on
         <div className="timeline__scroll" ref={scrollRef}>
           <div className="timeline__content">
             <div className="ruler" style={columns}>
-              {Array.from({ length: pattern.length }, (_, i) => (
+              {Array.from({ length: loop.length }, (_, i) => (
                 <div
                   key={i}
                   className={`tick${i % 4 === 0 ? ' tick--beat' : ''}${i === playStep ? ' tick--play' : ''}`}
@@ -177,7 +176,7 @@ export function PianoRoll({ pattern, melodyIndex, engine, dispatch, openMenu, on
             <div className="rows rows--roll">
               {rows.map((midi) => (
                 <div key={midi} className={`prow${isBlackKey(midi) ? ' prow--black' : ''}`} style={columns}>
-                  {Array.from({ length: pattern.length }, (_, step) => (
+                  {Array.from({ length: loop.length }, (_, step) => (
                     <div
                       key={step}
                       className={`pslot${step % 4 === 0 ? ' pslot--beat' : ''}${step === caret ? ' pslot--caret' : ''}${step === playStep ? ' pslot--play' : ''}`}
@@ -193,7 +192,7 @@ export function PianoRoll({ pattern, melodyIndex, engine, dispatch, openMenu, on
                     />
                   ))}
 
-                  {melody.notes
+                  {loop.notes
                     .filter((n) => n.midi === midi)
                     .map((n) => {
                       const press = longPress((x, y) => openMenu(x, y, noteMenu(n)))
@@ -203,13 +202,13 @@ export function PianoRoll({ pattern, melodyIndex, engine, dispatch, openMenu, on
                           className={`pnote pnote--v${n.v}`}
                           style={
                             {
-                              '--track': def.color,
-                              left: `${(n.step / pattern.length) * 100}%`,
-                              width: `${(Math.min(n.len, pattern.length - n.step) / pattern.length) * 100}%`,
+                              '--track': loop.color,
+                              left: `${(n.step / loop.length) * 100}%`,
+                              width: `${(Math.min(n.len, loop.length - n.step) / loop.length) * 100}%`,
                             } as CSSProperties
                           }
                           {...press}
-                          onClick={() => dispatch({ t: 'noteRemove', melody: melodyIndex, step: n.step, midi: n.midi })}
+                          onClick={() => dispatch({ t: 'noteRemove', id: loop.id, step: n.step, midi: n.midi })}
                           onContextMenu={(e) => {
                             e.preventDefault()
                             openMenu(e.clientX, e.clientY, noteMenu(n))
