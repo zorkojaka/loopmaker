@@ -1,15 +1,12 @@
-import type { Pattern, Song, Track, Velocity } from '../types'
-
-export const STEPS = 16
+import type { Step, Track, Vel } from '../types'
 
 export interface InstrumentDef {
   voice: string
   name: string
   color: string
-  /** privzeti tune (polton offset) */
   tune: number
   level: number
-  /** ali je glas melodičen — takrat tune sliderju pokažemo ime note */
+  /** melodičnim glasovom pri tune prikažemo ime note namesto polutonov */
   melodic?: boolean
 }
 
@@ -30,69 +27,35 @@ export const instrumentOf = (voice: string): InstrumentDef =>
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-/** Bas je uglašen na A1 (55 Hz) pri tune=0, blip na A4. */
+/** Bas je pri tune=0 uglašen na A1 (55 Hz), Blip na A4. */
 export function noteName(voice: string, tune: number): string {
   const rootMidi = voice === 'bass' ? 33 : 69
   const midi = rootMidi + Math.round(tune)
   return `${NOTE_NAMES[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`
 }
 
-function emptySteps(): Velocity[] {
-  return new Array(STEPS).fill(0) as Velocity[]
+export function emptySteps(length: number): Step[] {
+  return Array.from({ length }, () => ({ v: 0 as Vel }))
 }
 
-/** Zapis vzorca v znakih: '.' tišina, 'x' normalno, 'X' akcent. */
-function parseSteps(s: string): Velocity[] {
-  const out = emptySteps()
-  for (let i = 0; i < Math.min(s.length, STEPS); i++) {
-    out[i] = s[i] === 'X' ? 2 : s[i] === 'x' ? 1 : 0
-  }
-  return out
+/** Zapis vzorca v znakih: '.' tišina, 'o' ghost, 'x' normalno, 'X' akcent. */
+export function parseSteps(s: string, length: number): Step[] {
+  return Array.from({ length }, (_, i) => {
+    const c = s[i]
+    return { v: (c === 'X' ? 3 : c === 'x' ? 2 : c === 'o' ? 1 : 0) as Vel }
+  })
 }
 
-function makeTrack(voice: string, pattern = ''): Track {
+export function makeTrack(voice: string, pattern = '', length = 16): Track {
   const def = instrumentOf(voice)
   return {
     voice,
     name: def.name,
-    steps: parseSteps(pattern),
+    steps: parseSteps(pattern, length),
     level: def.level,
     tune: def.tune,
     decay: 1,
     muted: false,
     soloed: false,
-  }
-}
-
-export function emptyPattern(name: string): Pattern {
-  return { name, tracks: INSTRUMENTS.map((i) => makeTrack(i.voice)) }
-}
-
-/** Startni beat — da aplikacija ob prvem odprtju takoj nekaj igra. */
-function demoPattern(): Pattern {
-  return {
-    name: 'A',
-    tracks: [
-      makeTrack('kick', 'X...x...X.......'),
-      makeTrack('snare', '....X.......X...'),
-      makeTrack('clap', '................'),
-      makeTrack('hat', 'x.x.x.x.x.xxx.x.'),
-      makeTrack('openhat', '......x.......x.'),
-      makeTrack('tom', '................'),
-      makeTrack('rim', '................'),
-      makeTrack('bass', 'X..x..X...x..X..'),
-      makeTrack('blip', '................'),
-    ],
-  }
-}
-
-export function defaultSong(): Song {
-  return {
-    patterns: [demoPattern(), emptyPattern('B'), emptyPattern('C'), emptyPattern('D')],
-    current: 0,
-    bpm: 96,
-    swing: 0.12,
-    master: 0.8,
-    steps: STEPS,
   }
 }

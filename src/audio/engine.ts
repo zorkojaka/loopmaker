@@ -1,17 +1,24 @@
-import type { Song } from '../types'
+import { barsOf, patternById, songLengthBars } from '../state/song'
+import type { Pattern, Song, Vel } from '../types'
+import { STEPS_PER_BAR } from '../types'
 import { VOICES } from './voices'
 
-/** Kako pogosto teče scheduler (ms) in kako daleč naprej razporeja (s). */
+/** Kako pogosto se zbudi scheduler (ms) in kako daleč naprej razporeja (s). */
 const TICK_MS = 25
 const LOOKAHEAD = 0.12
+
+const GAIN_BY_VEL: Record<Vel, number> = { 0: 0, 1: 0.3, 2: 0.62, 3: 1 }
 
 /**
  * Transport + zvočni izhod.
  *
- * Ključna ideja: setTimeout je preveč nenatančen za glasbo, zato ga uporabimo
- * samo kot "budilko", ki vsakih 25 ms pogleda naprej in vse dogodke v naslednjih
- * 120 ms razporedi na točne trenutke ure AudioContexta. Ta ura je vzorčno
- * natančna, zato ritem ne plava, tudi če brskalnik zajeclja.
+ * setTimeout je za glasbo preveč nenatančen, zato služi le kot budilka: vsakih
+ * 25 ms pogleda 120 ms naprej in vse dogodke pripne na vzorčno natančno uro
+ * AudioContexta. Ritem zato ne plava, tudi če brskalnik za hip zajeclja.
+ *
+ * Isti scheduler poganja oba načina — razlika je le, kateri korak razrešimo v
+ * zvok: v načinu 'pattern' korak trenutnega vzorca, v 'song' pa globalni korak
+ * časovnice, pri katerem pogledamo, kateri bloki tečejo ravno zdaj.
  */
 export class Engine {
   private ctx: AudioContext | null = null
@@ -19,8 +26,11 @@ export class Engine {
   private timer: number | null = null
   private nextStepTime = 0
   private step = 0
-  /** vrsta razporejenih korakov, iz katere UI bere trenutni playhead */
+  private secPerStep = 0.15
+  /** razporejeni koraki, iz katerih UI bere pozicijo playheada */
   private queue: { step: number; time: number }[] = []
+  private lastStep = -1
+  private lastStepTime = 0
 
   playing = false
 
@@ -34,7 +44,8 @@ export class Engine {
   async unlock(): Promise<void> {
     if (!this.ctx) {
       const Ctor: typeof AudioContext =
-        window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
       this.ctx = new Ctor({ latencyHint: 'interactive' })
 
       this.master = this.ctx.createGain()
@@ -50,18 +61,15 @@ export class Engine {
     }
     if (this.ctx.state !== 'running') await this.ctx.resume()
 
-    // iOS potrebuje en dejansko predvajan buffer, preden spusti zvok skozi
-    const b = this.ctx.createBuffer(1, 1, this.ctx.sampleRate)
-    const s = this.ctx.createBufferSource()
-    s.buffer = b
-    s.connect(this.ctx.destination)
-    s.start(0)
+    // iOS spusti zvok skozi šele, ko je enkrat dejansko kaj predvajal
+    const src = this.ctx.createBufferSource()
+    src.buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate)
+    src.connect(this.ctx.destination)
+    src.start(0)
   }
 
   setMaster(v: number) {
-    if (this.master && this.ctx) {
-      this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.01)
-    }
+    if (this.master && this.ctx) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.01)
   }
 
   async start() {
@@ -69,6 +77,7 @@ export class Engine {
     if (this.playing || !this.ctx) return
     this.playing = true
     this.step = 0
+    this.lastStep = -1
     this.queue = []
     this.nextStepTime = this.ctx.currentTime + 0.06
     this.timer = window.setInterval(this.tick, TICK_MS)
@@ -82,6 +91,7 @@ export class Engine {
       this.timer = null
     }
     this.queue = []
+    this.lastStep = -1
   }
 
   async toggle() {
@@ -89,60 +99,106 @@ export class Engine {
     else await this.start()
   }
 
-  /** Zaigraj en glas takoj — za predposlušanje ob urejanju. */
-  async preview(trackIndex: number) {
-    await this.unlock()
-    if (!this.ctx) return
-    this.playVoice(trackIndex, 2, this.ctx.currentTime + 0.01)
+  /** Skoči na dani korak (klik po traku playheada). */
+  seek(step: number) {
+    this.step = Math.max(0, Math.floor(step))
+    if (this.playing && this.ctx) {
+      this.queue = []
+      this.nextStepTime = this.ctx.currentTime + 0.03
+    } else {
+      this.lastStep = this.step
+    }
   }
 
-  /** Korak, ki se sliši zdaj (-1 če ne igra) — UI ga bere v requestAnimationFrame. */
-  visualStep(): number {
+  /** Zaigraj en glas takoj — predposlušanje ob izbiri instrumenta. */
+  async preview(pattern: Pattern, trackIndex: number) {
+    await this.unlock()
+    if (!this.ctx) return
+    this.playTrack(pattern, trackIndex, 3, this.ctx.currentTime + 0.01, 1)
+  }
+
+  /**
+   * Pozicija playheada v korakih, z decimalko vmes (za gladko drsenje traku).
+   * -1 pomeni, da ne igramo.
+   */
+  position(): number {
     if (!this.playing || !this.ctx) return -1
     const now = this.ctx.currentTime
     while (this.queue.length && this.queue[0].time <= now) {
       this.lastStep = this.queue[0].step
+      this.lastStepTime = this.queue[0].time
       this.queue.shift()
     }
-    return this.lastStep
+    if (this.lastStep < 0) return -1
+    const frac = Math.min(1, Math.max(0, (now - this.lastStepTime) / this.secPerStep))
+    return this.lastStep + frac
   }
-  private lastStep = -1
 
-  private playVoice(trackIndex: number, velocity: number, time: number) {
-    const song = this.getSong()
-    const track = song.patterns[song.current].tracks[trackIndex]
+  private playTrack(pattern: Pattern, index: number, v: Vel, time: number, decayScale = 1) {
+    const track = pattern.tracks[index]
     if (!track || !this.master || !this.ctx) return
     const voice = VOICES[track.voice]
     if (!voice) return
     voice(this.ctx, this.master, time, {
-      gain: track.level * (velocity === 2 ? 1 : 0.62),
+      gain: track.level * GAIN_BY_VEL[v],
       tune: track.tune,
-      decay: track.decay,
+      decay: track.decay * decayScale,
     })
+  }
+
+  /** Razreši en korak vzorca v zvok (upošteva mute/solo in roll). */
+  private schedulePattern(pattern: Pattern, localStep: number, time: number) {
+    const anySolo = pattern.tracks.some((t) => t.soloed)
+    for (let i = 0; i < pattern.tracks.length; i++) {
+      const track = pattern.tracks[i]
+      if (track.muted || (anySolo && !track.soloed)) continue
+      const step = track.steps[localStep]
+      if (!step || !step.v) continue
+
+      const roll = Math.max(1, step.roll ?? 1)
+      if (roll === 1) {
+        this.playTrack(pattern, i, step.v, time)
+      } else {
+        // roll: udarci enakomerno znotraj koraka, krajši in nekoliko tišji
+        const gap = this.secPerStep / roll
+        for (let r = 0; r < roll; r++) {
+          const v = (r === 0 ? step.v : Math.max(1, step.v - 1)) as Vel
+          this.playTrack(pattern, i, v, time + r * gap, 1 / roll + 0.15)
+        }
+      }
+    }
   }
 
   private tick = () => {
     if (!this.ctx || !this.playing) return
     const song = this.getSong()
-    const secPerStep = 60 / song.bpm / 4
+    this.secPerStep = 60 / song.bpm / 4
+
+    const patternMode = song.mode === 'pattern'
+    const current = patternById(song, song.currentPattern) ?? song.patterns[0]
+    const totalSteps = patternMode ? current.length : songLengthBars(song) * STEPS_PER_BAR
 
     while (this.nextStepTime < this.ctx.currentTime + LOOKAHEAD) {
-      const step = this.step
+      const step = this.step % totalSteps
       // swing zamakne lihe 16-tinke proti naslednji dobi
-      const time = step % 2 === 1 ? this.nextStepTime + secPerStep * song.swing : this.nextStepTime
+      const time = step % 2 === 1 ? this.nextStepTime + this.secPerStep * song.swing : this.nextStepTime
 
-      const tracks = song.patterns[song.current].tracks
-      const anySolo = tracks.some((t) => t.soloed)
-      for (let i = 0; i < tracks.length; i++) {
-        const t = tracks[i]
-        if (t.muted || (anySolo && !t.soloed)) continue
-        const v = t.steps[step]
-        if (v) this.playVoice(i, v, time)
+      if (patternMode) {
+        this.schedulePattern(current, step, time)
+      } else {
+        const bar = Math.floor(step / STEPS_PER_BAR)
+        for (const clip of song.clips) {
+          const pattern = patternById(song, clip.patternId)
+          if (!pattern) continue
+          if (bar < clip.bar || bar >= clip.bar + barsOf(pattern)) continue
+          const local = (step - clip.bar * STEPS_PER_BAR) % pattern.length
+          this.schedulePattern(pattern, local, time)
+        }
       }
 
       this.queue.push({ step, time })
-      this.step = (step + 1) % song.steps
-      this.nextStepTime += secPerStep
+      this.step = (step + 1) % totalSteps
+      this.nextStepTime += this.secPerStep
     }
   }
 }

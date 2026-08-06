@@ -1,14 +1,20 @@
-export type Velocity = 0 | 1 | 2
+/** 0 = tišina, 1 = ghost (tiho), 2 = normalno, 3 = akcent */
+export type Vel = 0 | 1 | 2 | 3
 
-/** Ena skladba/zvok v gridu. `steps` je dolg toliko kot Song.steps. */
+export interface Step {
+  v: Vel
+  /** koliko udarcev znotraj enega koraka (roll/ratchet); 1 ali nedefinirano = en */
+  roll?: number
+}
+
 export interface Track {
-  /** ključ instrumenta, glej instruments.ts */
+  /** ključ instrumenta, glej audio/instruments.ts */
   voice: string
   name: string
-  steps: Velocity[]
+  steps: Step[]
   /** 0..1 */
   level: number
-  /** polton offset, -12..12 — pri tolkalih deluje kot "tune" */
+  /** polton offset, -12..12 */
   tune: number
   /** množitelj dolžine zvoka, 0.2..2 */
   decay: number
@@ -17,18 +23,40 @@ export interface Track {
 }
 
 export interface Pattern {
+  id: string
   name: string
+  color: string
+  /** dolžina v korakih (16 = en takt) */
+  length: number
   tracks: Track[]
 }
 
+/** Blok vzorca na časovnici skladbe. */
+export interface Clip {
+  id: string
+  patternId: string
+  /** vrstica na časovnici */
+  lane: number
+  /** začetek v taktih */
+  bar: number
+}
+
+export type Mode = 'pattern' | 'song'
+
 export interface Song {
   patterns: Pattern[]
-  /** indeks aktivnega patterna */
-  current: number
+  currentPattern: string
+  clips: Clip[]
+  /** število vrstic na časovnici */
+  lanes: number
+  /** dolžina časovnice v taktih */
+  bars: number
+  mode: Mode
   bpm: number
   /** 0..0.6 — zamik lihih 16-tink */
   swing: number
   /** 0..1 */
   master: number
-  steps: number
 }
+
+export const STEPS_PER_BAR = 16
