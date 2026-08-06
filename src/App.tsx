@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { Engine } from './audio/engine'
+import { Board } from './components/Board'
 import { ContextMenu } from './components/ContextMenu'
 import type { MenuItem, MenuState } from './components/ContextMenu'
-import { Inspector } from './components/Inspector'
-import { LoopGrid } from './components/LoopGrid'
-import { Palette } from './components/Palette'
-import { PianoRoll } from './components/PianoRoll'
 import { TopBar } from './components/TopBar'
-import { defaultSong, loopById, migrate, reducer } from './state/song'
+import { defaultSong, migrate, reducer } from './state/song'
 import type { Song } from './types'
 
 const STORAGE_KEY = 'loopmaker.song.v3'
@@ -31,7 +28,6 @@ function loadSong(): Song {
 export default function App() {
   const [song, dispatch] = useReducer(reducer, undefined, loadSong)
   const [playing, setPlaying] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
   const [menu, setMenu] = useState<MenuState | null>(null)
 
   // engine bere vedno zadnje stanje, ne da bi ga bilo treba ustavljati
@@ -62,15 +58,12 @@ export default function App() {
         e.preventDefault()
         void toggle()
       }
-      if (e.code === 'Escape' && editingId) setEditingId(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [toggle, editingId])
+  }, [toggle])
 
   const openMenu = useCallback((x: number, y: number, items: MenuItem[]) => setMenu({ x, y, items }), [])
-
-  const editing = loopById(song, editingId)
 
   return (
     <div className="app" onContextMenu={(e) => e.preventDefault()}>
@@ -83,30 +76,8 @@ export default function App() {
       />
 
       <main className="stage">
-        {!editing ? (
-          <Palette song={song} engine={engine} dispatch={dispatch} onEdit={setEditingId} openMenu={openMenu} />
-        ) : editing.kind === 'melody' ? (
-          <PianoRoll
-            loop={editing}
-            engine={engine}
-            dispatch={dispatch}
-            onBack={() => setEditingId(null)}
-            openMenu={openMenu}
-          />
-        ) : (
-          <LoopGrid
-            song={song}
-            editing={editing}
-            engine={engine}
-            dispatch={dispatch}
-            onSelect={setEditingId}
-            onBack={() => setEditingId(null)}
-            openMenu={openMenu}
-          />
-        )}
+        <Board song={song} engine={engine} dispatch={dispatch} openMenu={openMenu} />
       </main>
-
-      {editing && <Inspector loop={editing} engine={engine} dispatch={dispatch} />}
 
       {menu && <ContextMenu state={menu} onClose={() => setMenu(null)} />}
     </div>

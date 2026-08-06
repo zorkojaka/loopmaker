@@ -192,246 +192,201 @@ button:active {
   text-transform: uppercase;
 }
 
-/* --- paleta loopov -------------------------------------------------------- */
+/* --- deska loopov: vse na enem zaslonu ---------------------------------- */
 
-.palette {
+.board {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-height: 100%;
 }
 
-.palette__grid {
+.lrow {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 10px;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  transition: border-color 140ms, background 140ms;
 }
 
-.card {
+.lrow--on {
+  background: color-mix(in srgb, var(--track) 9%, var(--panel));
+  border-color: color-mix(in srgb, var(--track) 45%, transparent);
+}
+
+/* veliki gumb za vklop — glavni cilj palca */
+.power {
+  width: 84px;
+  height: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0;
+  border-radius: 18px;
+  background: #161b28;
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+
+.power__ring {
   position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 3px solid currentColor;
+  /* zareza na vrhu kroga, da nastane znak za vklop */
+  clip-path: polygon(0 0, 42% 0, 42% 42%, 58% 42%, 58% 0, 100% 0, 100% 100%, 0 100%);
+}
+
+.power__ring::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -7px;
+  width: 3px;
+  height: 15px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.power__label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.lrow--on .power {
+  color: #06222a;
+  background: var(--track);
+  border-color: transparent;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--track) 40%, transparent);
+}
+
+.lrow__main {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px 12px;
-  text-align: left;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  overflow: hidden;
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-  transition: border-color 120ms, background 120ms;
+  justify-content: center;
 }
 
-.card--on {
-  background: color-mix(in srgb, var(--track) 12%, var(--panel));
-  border-color: color-mix(in srgb, var(--track) 55%, transparent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--track) 18%, transparent);
-}
-
-.card:active {
-  transform: translateY(1px);
-}
-
-.card__head {
+.lrow__head {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.card__dot {
-  width: 10px;
-  height: 10px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--track);
-  opacity: 0.45;
-}
-
-.card--on .card__dot {
-  opacity: 1;
-  box-shadow: 0 0 10px var(--track);
-}
-
-.card__name {
+.lrow__name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
+  color: var(--track);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.card__edit {
-  margin-left: auto;
-  padding: 4px 8px;
+.lrow__meta {
+  font-size: 11px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lrow__btn {
+  padding: 5px 9px;
   font-size: 13px;
   color: var(--dim);
   background: transparent;
   border-color: transparent;
 }
 
-.card__edit:hover {
+.lrow__btn:first-of-type {
+  margin-left: auto;
+}
+
+.lrow__btn--on,
+.lrow__btn:hover {
   color: var(--text);
   border-color: var(--line);
 }
 
-.card__mini {
-  display: flex;
-  gap: 2px;
-  height: 22px;
-  align-items: stretch;
+.lrow__grid {
+  position: relative;
 }
 
-.mini {
-  flex: 1;
-  min-width: 0;
-  border-radius: 2px;
-  background: #1b2030;
+.lrow__cells {
+  display: grid;
+  gap: 3px;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.mini--beat {
-  background: #232a3d;
-}
-
-.mini--v1 {
-  background: color-mix(in srgb, var(--track) 35%, #0d1019);
-}
-
-.mini--v2 {
-  background: color-mix(in srgb, var(--track) 70%, #0d1019);
-}
-
-.mini--v3 {
-  background: var(--track);
-}
-
-.card__foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.badge {
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  padding: 4px 8px;
-  border-radius: 999px;
-  color: var(--dim);
-  background: var(--panel-2);
-}
-
-.badge--on {
-  color: #06222a;
-  background: var(--track);
-}
-
-.card__meta {
-  font-size: 11px;
-  color: var(--dim);
-  margin-left: auto;
-}
-
-.card__phase {
+/* črta, ki teče po tem loopu — vsak loop ima svojo, ker so različno dolgi */
+.rowline {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 3px;
-  background: transparent;
-}
-
-.card__phase i {
-  display: block;
-  height: 100%;
-  background: var(--track);
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.75);
   opacity: 0;
-  transform-origin: left center;
-  transform: scaleX(0);
+  pointer-events: none;
 }
 
-.card--add {
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 118px;
-  color: var(--dim);
-  background: transparent;
-  border-style: dashed;
-  font-size: 13px;
-}
-
-.card--add span {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.palette__bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: auto;
-  padding-top: 4px;
-}
-
-.palette__hint {
-  font-size: 11.5px;
-  color: var(--dim);
-}
-
-/* --- urejevalnik ---------------------------------------------------------- */
-
-.editor {
+.lpanel {
+  grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
 }
 
-.editor__bar {
+.lpanel__sliders {
+  display: grid;
+  gap: 2px;
+}
+
+.lpanel__actions {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }
 
-.editor__title {
-  font-weight: 700;
-  color: var(--track);
-  padding: 0 4px;
-}
-
-.editor__group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding-left: 8px;
-  border-left: 1px solid var(--line);
-}
-
-.editor__meta {
+.lpanel__label {
   font-size: 11px;
   color: var(--dim);
-  font-variant-numeric: tabular-nums;
 }
 
-.editor__note {
-  margin: 0;
+.board__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+}
+
+.board__add {
+  font-weight: 600;
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.board__hint {
   font-size: 11.5px;
   color: var(--dim);
-}
-
-.glabel--off {
-  opacity: 0.45;
-}
-
-.row--off .cell {
-  opacity: 0.5;
-}
-
-.cell--repeat {
-  opacity: 0.55;
 }
 
 /* --- časovnica (skupno za vzorec in skladbo) ----------------------------- */
@@ -881,44 +836,7 @@ button:active {
   font-size: 11px;
 }
 
-/* --- spodnji pas: izbrani element ---------------------------------------- */
-
-.inspector {
-  background: var(--panel);
-  border-top: 1px solid var(--line);
-  padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
-}
-
-.inspector__head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-
-.inspector__name {
-  font-weight: 700;
-  background: transparent;
-  border-color: var(--track);
-  color: var(--track);
-}
-
-.inspector__meta {
-  font-size: 12px;
-  color: var(--dim);
-  margin-right: auto;
-}
-
-.inspector__hint {
-  font-size: 12.5px;
-  color: var(--dim);
-  line-height: 1.5;
-}
-
-.inspector__hint strong {
-  color: var(--text);
-}
+/* --- drobni gradniki: gumbki in drsniki ---------------------------------- */
 
 .chip {
   font-size: 12px;
@@ -934,11 +852,6 @@ button:active {
 
 .chip--danger {
   color: #ff7b8a;
-}
-
-.inspector__sliders {
-  display: grid;
-  gap: 2px;
 }
 
 .slider {
@@ -970,7 +883,7 @@ button:active {
 }
 
 @media (min-width: 720px) {
-  .inspector__sliders {
+  .lpanel__sliders {
     grid-template-columns: 1fr 1fr;
     gap: 4px 28px;
   }
@@ -989,7 +902,13 @@ button:active {
     margin-left: auto;
   }
 
-  .palette__grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  .power {
+    width: 68px;
+    height: 68px;
+  }
+
+  .lrow {
+    gap: 9px;
+    padding: 8px;
   }
 }

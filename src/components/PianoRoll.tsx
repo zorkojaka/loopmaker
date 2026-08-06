@@ -13,7 +13,6 @@ interface Props {
   loop: Loop
   engine: Engine
   dispatch: Dispatch<Action>
-  onBack: () => void
   openMenu: (x: number, y: number, items: MenuItem[]) => void
 }
 
@@ -22,7 +21,7 @@ const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const LENGTHS = [1, 2, 4, 8]
 
 /** Klavirska mreža: navpično višina tona, vodoravno čas. Akordi so note druga nad drugo. */
-export function PianoRoll({ loop, engine, dispatch, onBack, openMenu }: Props) {
+export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
   const [low, setLow] = useState(48) // C3
   const [len, setLen] = useState(4)
   const [caret, setCaret] = useState(0)
@@ -87,34 +86,22 @@ export function PianoRoll({ loop, engine, dispatch, onBack, openMenu }: Props) {
   ]
 
   return (
-    <div className="editor">
-      <div className="editor__bar">
-        <button className="chip" onClick={onBack}>
-          ← Paleta
+    <div className="roll">
+      <div className="roll__bar">
+        <span className="roll__meta">Oktava</span>
+        <button className="chip" onClick={() => setLow((v) => Math.max(24, v - 12))}>
+          −8va
         </button>
-        <span className="editor__title" style={{ '--track': loop.color } as CSSProperties}>
-          {loop.name}
-        </span>
-        <button className={`chip${loop.active ? ' chip--on' : ''}`} onClick={() => dispatch({ t: 'loopToggle', id: loop.id })}>
-          {loop.active ? 'Igra' : 'Izklop'}
+        <span className="roll__meta">{midiName(low)}</span>
+        <button className="chip" onClick={() => setLow((v) => Math.min(84, v + 12))}>
+          +8va
         </button>
-        <div className="editor__group">
-          <button className="chip" onClick={() => setLow((v) => Math.max(24, v - 12))}>
-            −8va
+        <span className="roll__meta roll__meta--gap">Dolžina note</span>
+        {LENGTHS.map((l) => (
+          <button key={l} className={`chip${len === l ? ' chip--on' : ''}`} onClick={() => setLen(l)}>
+            {l}
           </button>
-          <span className="editor__meta">{midiName(low)}</span>
-          <button className="chip" onClick={() => setLow((v) => Math.min(84, v + 12))}>
-            +8va
-          </button>
-        </div>
-        <div className="editor__group">
-          <span className="editor__meta">Nota</span>
-          {LENGTHS.map((l) => (
-            <button key={l} className={`chip${len === l ? ' chip--on' : ''}`} onClick={() => setLen(l)}>
-              {l}
-            </button>
-          ))}
-        </div>
+        ))}
       </div>
 
       <div className="chords">

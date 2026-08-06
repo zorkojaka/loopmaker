@@ -1,0 +1,299 @@
+import { useRef } from 'react'
+import type { CSSProperties, Dispatch } from 'react'
+import type { Engine } from '../audio/engine'
+import { longPress } from '../hooks/longPress'
+import { midiName } from '../audio/instruments'
+import { barsOf, cloneLoop } from '../state/song'
+import type { Action } from '../state/song'
+import type { Loop, Vel } from '../types'
+import type { MenuItem } from './ContextMenu'
+import { PianoRoll } from './PianoRoll'
+
+interface Props {
+  loop: Loop
+  engine: Engine
+  dispatch: Dispatch<Action>
+  expanded: boolean
+  onExpand: () => void
+  openMenu: (x: number, y: number, items: MenuItem[]) => void
+  registerLine: (id: string, el: HTMLElement | null) => void
+}
+
+const VEL_LABELS: Record<number, string> = { 1: 'Ghost (tiho)', 2: 'Normalno', 3: 'Akcent' }
+
+function Slider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  display,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  display: string
+  onChange: (v: number) => void
+}) {
+  return (
+    <label className="slider">
+      <span className="slider__label">
+        {label}
+        <em>{display}</em>
+      </span>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </label>
+  )
+}
+
+/**
+ * Ena vrstica = en loop: velik gumb za vklop, ob njem pa mreža, v kateri ga
+ * takoj tudi urejaš. Podrobnosti (glasnost, uglasitev, klaviatura) se odprejo
+ * pod vrstico, da ni treba nikamor oditi.
+ */
+export function LoopRow({ loop, engine, dispatch, expanded, onExpand, openMenu, registerLine }: Props) {
+  /** vrednost, ki jo trenutno "barvamo" med vlečenjem; null = ne vlečemo */
+  const paint = useRef<Vel | null>(null)
+  const melodic = loop.kind === 'melody'
+  const columns: CSSProperties = { gridTemplateColumns: `repeat(${loop.length}, minmax(18px, 1fr))` }
+
+  const setStep = (step: number, value: { v: Vel; roll?: number }) => dispatch({ t: 'step', id: loop.id, step, value })
+
+  const stepAt = (x: number, y: number): number | null => {
+    const el = document.elementFromPoint(x, y)
+    const cell = (el as HTMLElement | null)?.closest<HTMLElement>('[data-cell]')
+    if (!cell || cell.dataset.loop !== loop.id) return null
+    return Number(cell.dataset.step)
+  }
+
+  const stepMenu = (step: number): MenuItem[] => {
+    const cur = loop.steps[step]
+    return [
+      { label: `${loop.name} · korak ${step + 1}`, header: true },
+      ...([1, 2, 3] as Vel[]).map((v) => ({
+        label: VEL_LABELS[v],
+        checked: cur.v === v,
+        onClick: () => setStep(step, { v, roll: cur.roll }),
+      })),
+      { separator: true },
+      { label: 'Roll (ponovitve v koraku)', header: true },
+      ...[1, 2, 3, 4].map((roll) => ({
+        label: roll === 1 ? 'Brez' : `×${roll}`,
+        checked: (cur.roll ?? 1) === roll,
+        onClick: () => setStep(step, { v: cur.v || 2, roll }),
+      })),
+      { separator: true },
+      { label: 'Izbriši korak', onClick: () => setStep(step, { v: 0 }) },
+    ]
+  }
+
+  const rowMenu = (): MenuItem[] => [
+    { label: loop.name, header: true },
+    { label: loop.active ? 'Ugasni' : 'Prižgi', onClick: () => dispatch({ t: 'loopToggle', id: loop.id }) },
+    { label: 'Samo ta naj igra', onClick: () => dispatch({ t: 'loopOnly', id: loop.id }) },
+    {
+      label: 'Podvoji',
+      onClick: () => dispatch({ t: 'loopInsert', loop: cloneLoop(loop), after: loop.id }),
+    },
+    {
+      label: 'Preimenuj…',
+      onClick: () => {
+        const name = prompt('Ime loopa', loop.name)
+        if (name) dispatch({ t: 'loopPatch', id: loop.id, patch: { name } })
+      },
+    },
+    { separator: true },
+    { label: 'Dolžina', header: true },
+    ...[16, 32, 64].map((length) => ({
+      label: length === 16 ? '1 takt' : `${length / 16} takti`,
+      checked: loop.length === length,
+      onClick: () => dispatch({ t: 'loopLength', id: loop.id, length }),
+    })),
+    ...(melodic
+      ? [
+          { separator: true } as MenuItem,
+          { label: 'Oktavo višje', onClick: () => dispatch({ t: 'loopPatch', id: loop.id, patch: { tune: loop.tune + 12 } }) },
+          { label: 'Oktavo nižje', onClick: () => dispatch({ t: 'loopPatch', id: loop.id, patch: { tune: loop.tune - 12 } }) },
+        ]
+      : [
+          { separator: true } as MenuItem,
+          { label: 'Zapolni vsako 4-tinko', onClick: () => dispatch({ t: 'rowFill', id: loop.id, every: 4, v: 2 }) },
+          { label: 'Zapolni vsako 8-tinko', onClick: () => dispatch({ t: 'rowFill', id: loop.id, every: 2, v: 2 }) },
+        ]),
+    { separator: true },
+    { label: 'Počisti', onClick: () => dispatch({ t: 'loopClear', id: loop.id }) },
+    { label: 'Izbriši loop', danger: true, onClick: () => dispatch({ t: 'loopDelete', id: loop.id }) },
+  ]
+
+  const handleDown = (e: React.PointerEvent) => {
+    if (melodic || e.button === 2) return
+    const step = stepAt(e.clientX, e.clientY)
+    if (step === null) return
+    const cur = loop.steps[step]
+    // klik kroži prazno → normalno → akcent → prazno; niansa je v dolgem pritisku
+    const next: Vel = cur.v === 0 ? 2 : cur.v === 2 ? 3 : 0
+    paint.current = next
+    setStep(step, { v: next, roll: next ? cur.roll : undefined })
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+
+  const handleMove = (e: React.PointerEvent) => {
+    if (paint.current === null) return
+    const step = stepAt(e.clientX, e.clientY)
+    if (step !== null) setStep(step, { v: paint.current })
+  }
+
+  const summary = melodic
+    ? loop.notes.length
+      ? `${loop.notes.length} not`
+      : 'prazen'
+    : loop.steps.some((s) => s.v)
+      ? `${loop.steps.filter((s) => s.v).length} udarcev`
+      : 'prazen'
+
+  return (
+    <div className={`lrow${loop.active ? ' lrow--on' : ''}`} style={{ '--track': loop.color } as CSSProperties}>
+      <button
+        className="power"
+        aria-pressed={loop.active}
+        aria-label={`${loop.name}: ${loop.active ? 'ugasni' : 'prižgi'}`}
+        onClick={() => dispatch({ t: 'loopToggle', id: loop.id })}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          openMenu(e.clientX, e.clientY, rowMenu())
+        }}
+        {...longPress((x, y) => openMenu(x, y, rowMenu()))}
+      >
+        <span className="power__ring" />
+        <span className="power__label">{loop.active ? 'IGRA' : 'IZKLOP'}</span>
+      </button>
+
+      <div className="lrow__main">
+        <div className="lrow__head">
+          <span className="lrow__name">{loop.name}</span>
+          <span className="lrow__meta">
+            {summary} · {barsOf(loop) === 1 ? '1 takt' : `${barsOf(loop)} takti`}
+          </span>
+          <button className={`lrow__btn${expanded ? ' lrow__btn--on' : ''}`} onClick={onExpand} aria-label="Podrobnosti">
+            {expanded ? '⌃' : '⌄'}
+          </button>
+          <button className="lrow__btn" onClick={(e) => openMenu(e.clientX, e.clientY, rowMenu())} aria-label="Meni">
+            ⋯
+          </button>
+        </div>
+
+        <div className="lrow__grid">
+          <div
+            className="lrow__cells"
+            style={columns}
+            onPointerDown={handleDown}
+            onPointerMove={handleMove}
+            onPointerUp={() => (paint.current = null)}
+            onPointerCancel={() => (paint.current = null)}
+          >
+            {Array.from({ length: loop.length }, (_, i) => {
+              if (melodic) {
+                const starts = loop.notes.filter((n) => n.step === i)
+                const held = loop.notes.some((n) => i > n.step && i < n.step + n.len)
+                return (
+                  <div
+                    key={i}
+                    className={
+                      'cell' + (starts.length ? ' cell--v2' : held ? ' cell--v1' : '') + (i % 4 === 0 ? ' cell--beat' : '')
+                    }
+                    title={starts.map((n) => midiName(n.midi)).join(' ')}
+                    onClick={onExpand}
+                  >
+                    {starts.length > 1 && <span className="cell__roll">{starts.length}</span>}
+                  </div>
+                )
+              }
+              const s = loop.steps[i]
+              return (
+                <div
+                  key={i}
+                  data-cell
+                  data-loop={loop.id}
+                  data-step={i}
+                  className={'cell' + (s?.v ? ` cell--v${s.v}` : '') + (i % 4 === 0 ? ' cell--beat' : '')}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    openMenu(e.clientX, e.clientY, stepMenu(i))
+                  }}
+                  {...longPress((x, y) => openMenu(x, y, stepMenu(i)))}
+                >
+                  {s?.v > 0 && (s.roll ?? 1) > 1 && <span className="cell__roll">{s.roll}</span>}
+                </div>
+              )
+            })}
+          </div>
+          <i className="rowline" ref={(el) => registerLine(loop.id, el)} />
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="lpanel">
+          {melodic && <PianoRoll loop={loop} engine={engine} dispatch={dispatch} openMenu={openMenu} />}
+
+          <div className="lpanel__sliders">
+            <Slider
+              label="Glasnost"
+              value={loop.level}
+              min={0}
+              max={1}
+              step={0.01}
+              display={`${Math.round(loop.level * 100)}%`}
+              onChange={(v) => dispatch({ t: 'loopPatch', id: loop.id, patch: { level: v } })}
+            />
+            <Slider
+              label={melodic ? 'Transpozicija' : 'Tune'}
+              value={loop.tune}
+              min={-12}
+              max={12}
+              step={1}
+              display={`${loop.tune > 0 ? '+' : ''}${loop.tune}`}
+              onChange={(v) => dispatch({ t: 'loopPatch', id: loop.id, patch: { tune: v } })}
+            />
+            <Slider
+              label={melodic ? 'Izzven' : 'Dolžina zvoka'}
+              value={loop.decay}
+              min={0.2}
+              max={2}
+              step={0.05}
+              display={`${loop.decay.toFixed(2)}×`}
+              onChange={(v) => dispatch({ t: 'loopPatch', id: loop.id, patch: { decay: v } })}
+            />
+          </div>
+
+          <div className="lpanel__actions">
+            <span className="lpanel__label">Dolžina loopa</span>
+            {[16, 32, 64].map((l) => (
+              <button
+                key={l}
+                className={`chip${loop.length === l ? ' chip--on' : ''}`}
+                onClick={() => dispatch({ t: 'loopLength', id: loop.id, length: l })}
+              >
+                {l / 16} {l === 16 ? 'takt' : 'takti'}
+              </button>
+            ))}
+            <button className="chip" onClick={() => void engine.preview(loop)}>
+              Poslušaj
+            </button>
+            <button className="chip" onClick={() => dispatch({ t: 'loopInsert', loop: cloneLoop(loop), after: loop.id })}>
+              Podvoji
+            </button>
+            <button className="chip" onClick={() => dispatch({ t: 'loopClear', id: loop.id })}>
+              Počisti
+            </button>
+            <button className="chip chip--danger" onClick={() => dispatch({ t: 'loopDelete', id: loop.id })}>
+              Izbriši
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
