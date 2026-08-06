@@ -3,7 +3,9 @@ import { Engine } from './audio/engine'
 import { Board } from './components/Board'
 import { ContextMenu } from './components/ContextMenu'
 import type { MenuItem, MenuState } from './components/ContextMenu'
+import { MakeView } from './components/MakeView'
 import { TopBar } from './components/TopBar'
+import type { View } from './components/TopBar'
 import { defaultSong, migrate, reducer } from './state/song'
 import type { Song } from './types'
 
@@ -29,6 +31,8 @@ export default function App() {
   const [song, dispatch] = useReducer(reducer, undefined, loadSong)
   const [playing, setPlaying] = useState(false)
   const [menu, setMenu] = useState<MenuState | null>(null)
+  const [view, setView] = useState<View>('make')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   // engine bere vedno zadnje stanje, ne da bi ga bilo treba ustavljati
   const songRef = useRef(song)
@@ -51,6 +55,11 @@ export default function App() {
     setPlaying(engine.playing)
   }, [engine])
 
+  const ensurePlaying = useCallback(async () => {
+    if (!engine.playing) await engine.start()
+    setPlaying(engine.playing)
+  }, [engine])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return
@@ -70,13 +79,27 @@ export default function App() {
       <TopBar
         song={song}
         playing={playing}
+        view={view}
+        onView={setView}
         onToggle={() => void toggle()}
         onBpm={(bpm) => dispatch({ t: 'song', patch: { bpm } })}
         onMix={(patch) => dispatch({ t: 'song', patch })}
       />
 
       <main className="stage">
-        <Board song={song} engine={engine} dispatch={dispatch} openMenu={openMenu} />
+        {view === 'make' ? (
+          <MakeView
+            song={song}
+            engine={engine}
+            dispatch={dispatch}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onEnsurePlaying={ensurePlaying}
+            openMenu={openMenu}
+          />
+        ) : (
+          <Board song={song} engine={engine} dispatch={dispatch} openMenu={openMenu} />
+        )}
       </main>
 
       {menu && <ContextMenu state={menu} onClose={() => setMenu(null)} />}

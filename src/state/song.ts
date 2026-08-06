@@ -85,6 +85,7 @@ export function defaultSong(): Song {
     bpm: 96,
     swing: 0.12,
     master: 0.8,
+    metronome: false,
   }
 }
 
@@ -162,7 +163,7 @@ export function migrate(old: OldSong): Song {
   })
 
   if (!loops.length) return defaultSong()
-  return { loops, bpm: old.bpm ?? 96, swing: old.swing ?? 0.12, master: old.master ?? 0.8 }
+  return { loops, bpm: old.bpm ?? 96, swing: old.swing ?? 0.12, master: old.master ?? 0.8, metronome: false }
 }
 
 // --- akcije --------------------------------------------------------------

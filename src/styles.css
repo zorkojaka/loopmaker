@@ -192,6 +192,205 @@ button:active {
   text-transform: uppercase;
 }
 
+/* --- pogled "Delaj loop": tapkanje v ritmu ------------------------------- */
+
+.views {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.vtab {
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  white-space: nowrap;
+}
+
+.vtab--on {
+  background: var(--panel-2);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.make {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.make__loops {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.make__loops::-webkit-scrollbar {
+  display: none;
+}
+
+.lchip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--dim);
+  background: var(--bg);
+}
+
+.lchip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--track);
+}
+
+.lchip--on {
+  color: var(--text);
+  border-color: var(--track);
+  background: color-mix(in srgb, var(--track) 14%, var(--bg));
+}
+
+.lchip--add {
+  color: var(--accent);
+  border-style: dashed;
+}
+
+.make__rec {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* gumb za snemanje — rdeč, ker je edini, ki kaj zapiše */
+.rec {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: #ff8896;
+  border-color: #4a2530;
+  background: #1d1219;
+}
+
+.rec__dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.rec--on {
+  color: #180a0e;
+  background: #ff5c7c;
+  border-color: transparent;
+  box-shadow: 0 0 22px rgba(255, 92, 124, 0.45);
+}
+
+.rec--on .rec__dot {
+  animation: rec-pulse 1s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.make__opts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.make__opts--scale {
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.make__label {
+  font-size: 11px;
+  color: var(--dim);
+}
+
+/* velika ploščica za tolkala */
+.bigpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 150px;
+  border-radius: 20px;
+  color: var(--track);
+  background: color-mix(in srgb, var(--track) 14%, var(--panel));
+  border: 2px solid color-mix(in srgb, var(--track) 45%, transparent);
+  touch-action: manipulation;
+}
+
+.bigpad__name {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.bigpad__hint {
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
+.bigpad--hit,
+.pad--hit {
+  background: var(--track);
+  color: #06222a;
+  border-color: transparent;
+  box-shadow: 0 0 26px color-mix(in srgb, var(--track) 55%, transparent);
+}
+
+.bigpad--hit .bigpad__hint {
+  color: #06222a;
+}
+
+/* ploščice s toni lestvice za melodične loope */
+.pads {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.pad {
+  height: 66px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--track);
+  background: color-mix(in srgb, var(--track) 12%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--track) 40%, transparent);
+  border-radius: 14px;
+  touch-action: manipulation;
+}
+
+.make__note {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
 /* --- deska loopov: vse na enem zaslonu ---------------------------------- */
 
 .board {
@@ -909,6 +1108,18 @@ button:active {
 
   .mix {
     margin-left: auto;
+  }
+
+  .views {
+    order: 3;
+  }
+
+  .topbar__count {
+    order: 4;
+  }
+
+  .pads {
+    grid-template-columns: repeat(4, 1fr);
   }
 
   .power {

@@ -2,15 +2,19 @@ import { useState } from 'react'
 import type { Song } from '../types'
 import { BpmControl } from './BpmControl'
 
+export type View = 'make' | 'channels'
+
 interface Props {
   song: Song
   playing: boolean
+  view: View
+  onView: (view: View) => void
   onToggle: () => void
   onBpm: (bpm: number) => void
   onMix: (patch: Partial<Song>) => void
 }
 
-export function TopBar({ song, playing, onToggle, onBpm, onMix }: Props) {
+export function TopBar({ song, playing, view, onView, onToggle, onBpm, onMix }: Props) {
   const [mixOpen, setMixOpen] = useState(false)
   const active = song.loops.filter((l) => l.active).length
 
@@ -21,6 +25,23 @@ export function TopBar({ song, playing, onToggle, onBpm, onMix }: Props) {
       </button>
 
       <BpmControl bpm={song.bpm} onChange={onBpm} />
+
+      <div className="views" role="tablist">
+        {([
+          ['make', 'Delaj loop'],
+          ['channels', 'Kanali'],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={view === id}
+            className={`vtab${view === id ? ' vtab--on' : ''}`}
+            onClick={() => onView(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       <span className="topbar__count">
         <strong>{active}</strong>

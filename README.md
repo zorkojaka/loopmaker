@@ -22,7 +22,23 @@ bas in enotaktni hi-hat ostaneta v fazi, prižiganje sredi takta pa ne premakne 
 - **Faza 5:** izvoz v WAV, PWA (offline), deljenje povezave.
 - **Faza 6:** kamera kot kontroler (sledenje roki prek MediaPipe).
 
-## Uporaba
+## Trije pogledi
+
+1. **Delaj loop** — tu loop nastane: tapkaš ga v ritmu, popraviš v mreži. ✔
+2. **Kanali** — vklop/izklop loopov; veriženje v kitice pride kasneje. ✔
+3. **Mix** — kvadrati za sprotno mešanje in bližnjice do zvokov. (zadnje)
+
+## Delaj loop
+
+- Zgoraj izbereš loop (ali dodaš novega z **+ nov**).
+- **SNEMAJ** požene uro in odpre zapisovanje. Tapkaš po veliki ploščici (tolkala) ali po
+  ploščicah lestvice (melodični loopi) — vsak udarec se pripne na najbližji korak izbrane
+  **kvantizacije** (1/16, 1/8, 1/4).
+- **Akcent** naredi naslednje udarce glasnejše, **Metronom** doda klik na vsako dobo.
+- Pod ploščicami je mreža istega loopa: kar zgrešiš, popraviš s prstom.
+- Snemanje z mikrofona bo prišlo v isto okno.
+
+## Kanali
 
 Vse je na enem zaslonu. Vsak loop je svoja vrstica:
 

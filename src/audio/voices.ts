@@ -394,7 +394,23 @@ const organ: Voice = (ctx, dest, t, p) => {
   }
 }
 
+/** Klik metronoma — kratek in oster, da se sliši skozi vse ostalo. */
+const click: Voice = (ctx, dest, t, p) => {
+  const osc = ctx.createOscillator()
+  osc.type = 'square'
+  osc.frequency.value = 1400 * semi(p.tune)
+  const bp = ctx.createBiquadFilter()
+  bp.type = 'bandpass'
+  bp.frequency.value = 2200 * semi(p.tune)
+  bp.Q.value = 1.2
+  const g = env(ctx, t, p.gain * 0.35, 0.03, 0.001)
+  osc.connect(bp).connect(g).connect(dest)
+  osc.start(t)
+  osc.stop(t + 0.08)
+}
+
 export const VOICES: Record<string, Voice> = {
+  click,
   piano,
   flute,
   strings,

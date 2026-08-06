@@ -52,6 +52,8 @@ export interface Song {
   swing: number
   /** 0..1 */
   master: number
+  /** klik na vsako dobo — pomaga pri tapkanju v ritmu */
+  metronome: boolean
 }
 
 export const STEPS_PER_BAR = 16

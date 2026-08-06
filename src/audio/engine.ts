@@ -1,4 +1,5 @@
 import type { Loop, Song, Vel } from '../types'
+import { STEPS_PER_BAR } from '../types'
 import { midiToFreq } from './instruments'
 import { VOICES } from './voices'
 
@@ -109,15 +110,15 @@ export class Engine {
     }
   }
 
-  /** Zaigraj loop enkrat takoj — predposlušanje ob izbiri. */
-  async preview(loop: Loop) {
+  /** Zaigraj loop enkrat takoj — predposlušanje in tapkanje v živo. */
+  async preview(loop: Loop, v: Vel = 3) {
     await this.unlock()
     if (!this.ctx) return
     if (loop.kind === 'melody') {
       const first = loop.notes[0]
       await this.previewNote(loop.voice, (first?.midi ?? 60) + loop.tune, loop.level)
     } else {
-      this.playDrum(loop, 3, this.ctx.currentTime + 0.01)
+      this.playDrum(loop, v, this.ctx.currentTime + 0.01)
     }
   }
 
@@ -208,6 +209,11 @@ export class Engine {
       for (const loop of song.loops) {
         if (!loop.active) continue
         this.scheduleLoop(loop, step % loop.length, time)
+      }
+
+      // metronom: klik na vsako dobo, višji na prvo dobo takta
+      if (song.metronome && step % 4 === 0 && this.master) {
+        VOICES.click(this.ctx, this.master, time, { gain: 0.6, tune: step % STEPS_PER_BAR === 0 ? 7 : 0, decay: 1 })
       }
 
       this.queue.push({ step, time })
