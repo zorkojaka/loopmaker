@@ -58,7 +58,11 @@ export function LoopRow({ loop, engine, dispatch, expanded, onExpand, openMenu, 
   /** vrednost, ki jo trenutno "barvamo" med vlečenjem; null = ne vlečemo */
   const paint = useRef<Vel | null>(null)
   const melodic = loop.kind === 'melody'
-  const columns: CSSProperties = { gridTemplateColumns: `repeat(${loop.length}, minmax(18px, 1fr))` }
+  // enotaktni loop se vedno prilega širini vrstice; daljši dobi drsenje,
+  // da koraki ne postanejo premajhni za prst
+  const columns: CSSProperties = {
+    gridTemplateColumns: `repeat(${loop.length}, minmax(${loop.length > 16 ? '17px' : '0'}, 1fr))`,
+  }
 
   const setStep = (step: number, value: { v: Vel; roll?: number }) => dispatch({ t: 'step', id: loop.id, step, value })
 
@@ -186,51 +190,53 @@ export function LoopRow({ loop, engine, dispatch, expanded, onExpand, openMenu, 
         </div>
 
         <div className="lrow__grid">
-          <div
-            className="lrow__cells"
-            style={columns}
-            onPointerDown={handleDown}
-            onPointerMove={handleMove}
-            onPointerUp={() => (paint.current = null)}
-            onPointerCancel={() => (paint.current = null)}
-          >
-            {Array.from({ length: loop.length }, (_, i) => {
-              if (melodic) {
-                const starts = loop.notes.filter((n) => n.step === i)
-                const held = loop.notes.some((n) => i > n.step && i < n.step + n.len)
+          <div className="lrow__track">
+            <div
+              className="lrow__cells"
+              style={columns}
+              onPointerDown={handleDown}
+              onPointerMove={handleMove}
+              onPointerUp={() => (paint.current = null)}
+              onPointerCancel={() => (paint.current = null)}
+            >
+              {Array.from({ length: loop.length }, (_, i) => {
+                if (melodic) {
+                  const starts = loop.notes.filter((n) => n.step === i)
+                  const held = loop.notes.some((n) => i > n.step && i < n.step + n.len)
+                  return (
+                    <div
+                      key={i}
+                      className={
+                        'cell' + (starts.length ? ' cell--v2' : held ? ' cell--v1' : '') + (i % 4 === 0 ? ' cell--beat' : '')
+                      }
+                      title={starts.map((n) => midiName(n.midi)).join(' ')}
+                      onClick={onExpand}
+                    >
+                      {starts.length > 1 && <span className="cell__roll">{starts.length}</span>}
+                    </div>
+                  )
+                }
+                const s = loop.steps[i]
                 return (
                   <div
                     key={i}
-                    className={
-                      'cell' + (starts.length ? ' cell--v2' : held ? ' cell--v1' : '') + (i % 4 === 0 ? ' cell--beat' : '')
-                    }
-                    title={starts.map((n) => midiName(n.midi)).join(' ')}
-                    onClick={onExpand}
+                    data-cell
+                    data-loop={loop.id}
+                    data-step={i}
+                    className={'cell' + (s?.v ? ` cell--v${s.v}` : '') + (i % 4 === 0 ? ' cell--beat' : '')}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      openMenu(e.clientX, e.clientY, stepMenu(i))
+                    }}
+                    {...longPress((x, y) => openMenu(x, y, stepMenu(i)))}
                   >
-                    {starts.length > 1 && <span className="cell__roll">{starts.length}</span>}
+                    {s?.v > 0 && (s.roll ?? 1) > 1 && <span className="cell__roll">{s.roll}</span>}
                   </div>
                 )
-              }
-              const s = loop.steps[i]
-              return (
-                <div
-                  key={i}
-                  data-cell
-                  data-loop={loop.id}
-                  data-step={i}
-                  className={'cell' + (s?.v ? ` cell--v${s.v}` : '') + (i % 4 === 0 ? ' cell--beat' : '')}
-                  onContextMenu={(e) => {
-                    e.preventDefault()
-                    openMenu(e.clientX, e.clientY, stepMenu(i))
-                  }}
-                  {...longPress((x, y) => openMenu(x, y, stepMenu(i)))}
-                >
-                  {s?.v > 0 && (s.roll ?? 1) > 1 && <span className="cell__roll">{s.roll}</span>}
-                </div>
-              )
-            })}
+              })}
+            </div>
+            <i className="rowline" ref={(el) => registerLine(loop.id, el)} />
           </div>
-          <i className="rowline" ref={(el) => registerLine(loop.id, el)} />
         </div>
       </div>
 

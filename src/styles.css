@@ -318,7 +318,16 @@ button:active {
 }
 
 .lrow__grid {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  margin: 0 -2px;
+  padding: 0 2px;
+}
+
+.lrow__track {
   position: relative;
+  min-width: 100%;
 }
 
 .lrow__cells {
