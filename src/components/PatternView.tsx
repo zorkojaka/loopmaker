@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import type { CSSProperties, Dispatch } from 'react'
 import type { Engine } from '../audio/engine'
-import { instrumentOf } from '../audio/instruments'
+import { MELODIC, instrumentOf, melodicOf } from '../audio/instruments'
 import { usePlayhead } from '../hooks/usePlayhead'
 import type { Action } from '../state/song'
 import type { Pattern, Vel } from '../types'
@@ -14,6 +14,7 @@ interface Props {
   dispatch: Dispatch<Action>
   selectedTrack: number
   onSelectTrack: (i: number) => void
+  onOpenMelody: (i: number) => void
   openMenu: (x: number, y: number, items: MenuItem[]) => void
 }
 
@@ -31,7 +32,7 @@ function cellAt(x: number, y: number): Hit | null {
 
 const VEL_LABELS: Record<number, string> = { 1: 'Ghost (tiho)', 2: 'Normalno', 3: 'Akcent' }
 
-export function PatternView({ pattern, engine, dispatch, selectedTrack, onSelectTrack, openMenu }: Props) {
+export function PatternView({ pattern, engine, dispatch, selectedTrack, onSelectTrack, onOpenMelody, openMenu }: Props) {
   const { lineRef, scrollRef, step: playStep } = usePlayhead(engine, pattern.length)
   /** vrednost, ki jo trenutno "barvamo" med vlečenjem; null = ne vlečemo */
   const paint = useRef<Vel | null>(null)
@@ -75,6 +76,27 @@ export function PatternView({ pattern, engine, dispatch, selectedTrack, onSelect
       { label: 'Zbriši vrsto', danger: true, onClick: () => dispatch({ t: 'rowClear', track }) },
     ]
   }
+
+  const melodyMenu = (mi: number): MenuItem[] => {
+    const m = pattern.melodies[mi]
+    return [
+      { label: m.name, header: true },
+      { label: 'Odpri klaviaturo', onClick: () => onOpenMelody(mi) },
+      { label: 'Utišaj (mute)', checked: m.muted, onClick: () => dispatch({ t: 'melodyPatch', melody: mi, patch: { muted: !m.muted } }) },
+      { label: 'Samo ta (solo)', checked: m.soloed, onClick: () => dispatch({ t: 'melodyPatch', melody: mi, patch: { soloed: !m.soloed } }) },
+      { separator: true },
+      { label: 'Oktavo višje', onClick: () => dispatch({ t: 'melodyTranspose', melody: mi, by: 12 }) },
+      { label: 'Oktavo nižje', onClick: () => dispatch({ t: 'melodyTranspose', melody: mi, by: -12 }) },
+      { separator: true },
+      { label: 'Počisti note', onClick: () => dispatch({ t: 'melodyClear', melody: mi }) },
+      { label: 'Odstrani glasbilo', danger: true, onClick: () => dispatch({ t: 'melodyDelete', melody: mi }) },
+    ]
+  }
+
+  const addMelodyMenu = (): MenuItem[] => [
+    { label: 'Dodaj glasbilo', header: true },
+    ...MELODIC.map((def) => ({ label: def.name, onClick: () => dispatch({ t: 'melodyAdd', voice: def.voice }) })),
+  ]
 
   const handleDown = (e: React.PointerEvent) => {
     if (e.button === 2) return
@@ -127,6 +149,28 @@ export function PatternView({ pattern, engine, dispatch, selectedTrack, onSelect
             {track.soloed && <em className="glabel__flag">S</em>}
           </button>
         ))}
+
+        {pattern.melodies.map((melody, mi) => (
+          <button
+            key={melody.id}
+            className={`glabel glabel--melody${melody.muted ? ' glabel--muted' : ''}`}
+            style={{ '--track': melodicOf(melody.voice).color } as CSSProperties}
+            onClick={() => onOpenMelody(mi)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              openMenu(e.clientX, e.clientY, melodyMenu(mi))
+            }}
+            {...longPress((x, y) => openMenu(x, y, melodyMenu(mi)))}
+          >
+            <span className="glabel__dot" />
+            <span className="glabel__name">{melody.name}</span>
+            <em className="glabel__flag">♪</em>
+          </button>
+        ))}
+
+        <button className="gutter__add" onClick={(e) => openMenu(e.clientX, e.clientY, addMelodyMenu())}>
+          + glasbilo
+        </button>
       </div>
 
       <div className="timeline__scroll" ref={scrollRef}>
@@ -180,6 +224,34 @@ export function PatternView({ pattern, engine, dispatch, selectedTrack, onSelect
                     {s.v > 0 && (s.roll ?? 1) > 1 && <span className="cell__roll">{s.roll}</span>}
                   </div>
                 ))}
+              </div>
+            ))}
+
+            {/* melodični kanali: pregled, kje ležijo note — urejanje je v klaviaturi */}
+            {pattern.melodies.map((melody, mi) => (
+              <div
+                key={melody.id}
+                className="row row--melody"
+                style={{ ...columns, '--track': melodicOf(melody.voice).color } as CSSProperties}
+                onClick={() => onOpenMelody(mi)}
+              >
+                {Array.from({ length: pattern.length }, (_, si) => {
+                  const starts = melody.notes.filter((n) => n.step === si)
+                  const held = melody.notes.some((n) => si > n.step && si < n.step + n.len)
+                  return (
+                    <div
+                      key={si}
+                      className={
+                        'cell' +
+                        (starts.length ? ' cell--v2' : held ? ' cell--v1' : '') +
+                        (si % 4 === 0 ? ' cell--beat' : '') +
+                        (si === playStep ? ' cell--play' : '')
+                      }
+                    >
+                      {starts.length > 1 && <span className="cell__roll">{starts.length}</span>}
+                    </div>
+                  )
+                })}
               </div>
             ))}
           </div>

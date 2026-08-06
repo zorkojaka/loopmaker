@@ -25,7 +25,27 @@ export const INSTRUMENTS: InstrumentDef[] = [
 export const instrumentOf = (voice: string): InstrumentDef =>
   INSTRUMENTS.find((i) => i.voice === voice) ?? INSTRUMENTS[0]
 
+/** Melodični kanali — igrajo se v piano rollu, ne v ritmični mreži. */
+export const MELODIC: InstrumentDef[] = [
+  { voice: 'piano', name: 'Klavir', color: '#ffe066', tune: 0, level: 0.75, melodic: true },
+  { voice: 'flute', name: 'Flavta', color: '#8ce99a', tune: 0, level: 0.7, melodic: true },
+  { voice: 'strings', name: 'Godala', color: '#a5b4fc', tune: 0, level: 0.7, melodic: true },
+  { voice: 'pluck', name: 'Brenkalo', color: '#f8a8c8', tune: 0, level: 0.7, melodic: true },
+  { voice: 'organ', name: 'Orgle', color: '#7ad7f0', tune: 0, level: 0.6, melodic: true },
+]
+
+export const melodicOf = (voice: string): InstrumentDef =>
+  MELODIC.find((i) => i.voice === voice) ?? MELODIC[0]
+
+export const midiToFreq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12)
+
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+
+/** Ime MIDI note, npr. 60 → C4. */
+export const midiName = (midi: number) => `${NOTE_NAMES[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`
+
+/** Ali je nota črna tipka. */
+export const isBlackKey = (midi: number) => [1, 3, 6, 8, 10].includes(((midi % 12) + 12) % 12)
 
 /** Bas je pri tune=0 uglašen na A1 (55 Hz), Blip na A4. */
 export function noteName(voice: string, tune: number): string {

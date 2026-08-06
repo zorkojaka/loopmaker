@@ -1,3 +1,4 @@
+import { midiToFreq } from './instruments'
 import { barsOf, patternById, songLengthBars } from '../state/song'
 import type { Pattern, Song, Vel } from '../types'
 import { STEPS_PER_BAR } from '../types'
@@ -146,9 +147,40 @@ export class Engine {
     })
   }
 
+  /** Zaigraj eno noto melodičnega glasu — uporablja piano roll za predposluh. */
+  async previewNote(voice: string, midi: number, level = 0.7, dur = 0.4) {
+    await this.unlock()
+    if (!this.ctx || !this.master) return
+    const play = VOICES[voice]
+    play?.(this.ctx, this.master, this.ctx.currentTime + 0.01, {
+      gain: level * GAIN_BY_VEL[2],
+      tune: 0,
+      decay: 1,
+      freq: midiToFreq(midi),
+      dur,
+    })
+  }
+
   /** Razreši en korak vzorca v zvok (upošteva mute/solo in roll). */
   private schedulePattern(pattern: Pattern, localStep: number, time: number) {
-    const anySolo = pattern.tracks.some((t) => t.soloed)
+    const anySolo = pattern.tracks.some((t) => t.soloed) || pattern.melodies.some((m) => m.soloed)
+
+    for (const melody of pattern.melodies) {
+      if (melody.muted || (anySolo && !melody.soloed)) continue
+      const voice = VOICES[melody.voice]
+      if (!voice || !this.ctx || !this.master) continue
+      for (const n of melody.notes) {
+        if (n.step !== localStep || !n.v) continue
+        voice(this.ctx, this.master, time, {
+          gain: melody.level * GAIN_BY_VEL[n.v],
+          tune: 0,
+          decay: melody.decay,
+          freq: midiToFreq(n.midi),
+          dur: n.len * this.secPerStep,
+        })
+      }
+    }
+
     for (let i = 0; i < pattern.tracks.length; i++) {
       const track = pattern.tracks[i]
       if (track.muted || (anySolo && !track.soloed)) continue

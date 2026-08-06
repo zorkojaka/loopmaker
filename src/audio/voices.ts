@@ -11,6 +11,10 @@ export interface VoiceParams {
   tune: number
   /** množitelj dolžine */
   decay: number
+  /** višina tona v Hz — samo melodični glasovi */
+  freq?: number
+  /** kako dolgo naj ton drži (s) — samo melodični glasovi */
+  dur?: number
 }
 
 type Voice = (ctx: AudioContext, dest: AudioNode, t: number, p: VoiceParams) => void
@@ -205,7 +209,197 @@ const blip: Voice = (ctx, dest, t, p) => {
   osc.stop(t + d + 0.05)
 }
 
+// --- melodični glasovi ---------------------------------------------------
+//
+// Ti dobijo `freq` (višino) in `dur` (koliko časa naj ton drži), zato imajo
+// ovoj z zadrževanjem: attack → decay → sustain do konca note → release.
+
+interface AdsrOptions {
+  attack: number
+  decay: number
+  sustain: number
+  release: number
+}
+
+function adsr(ctx: AudioContext, t: number, peak: number, dur: number, o: AdsrOptions) {
+  const g = ctx.createGain()
+  const hold = Math.max(dur, o.attack + 0.02)
+  const sustainLevel = Math.max(peak * o.sustain, 0.0002)
+  g.gain.setValueAtTime(0.0001, t)
+  g.gain.linearRampToValueAtTime(Math.max(peak, 0.0002), t + o.attack)
+  g.gain.exponentialRampToValueAtTime(sustainLevel, t + o.attack + o.decay)
+  g.gain.setValueAtTime(sustainLevel, t + hold)
+  g.gain.exponentialRampToValueAtTime(0.0001, t + hold + o.release)
+  return { node: g, end: t + hold + o.release + 0.05 }
+}
+
+/** Rahel vibrato, ki niha frekvenco — brez njega pihala zvenijo mrtvo. */
+function vibrato(ctx: AudioContext, t: number, rate: number, cents: number, freq: number, target: AudioParam, end: number) {
+  const lfo = ctx.createOscillator()
+  lfo.frequency.value = rate
+  const depth = ctx.createGain()
+  depth.gain.setValueAtTime(0, t)
+  depth.gain.linearRampToValueAtTime(freq * (Math.pow(2, cents / 1200) - 1), t + 0.25)
+  lfo.connect(depth).connect(target)
+  lfo.start(t)
+  lfo.stop(end)
+}
+
+const PARTIALS: Record<string, [number, number][]> = {
+  // [mnogokratnik frekvence, glasnost]
+  piano: [[1, 1], [2, 0.32], [3, 0.12], [4, 0.06]],
+  organ: [[1, 1], [2, 0.5], [3, 0.28], [4, 0.18], [6, 0.1]],
+}
+
+const piano: Voice = (ctx, dest, t, p) => {
+  const f = p.freq ?? 440
+  const dur = p.dur ?? 0.25
+  // klavir ne drži tona v nedogled — zveni kot udarec z dolgim izzvenom
+  const { node, end } = adsr(ctx, t, p.gain, Math.min(dur, 0.9 * p.decay), {
+    attack: 0.004,
+    decay: 0.55 * p.decay,
+    sustain: 0.22,
+    release: 0.5 * p.decay,
+  })
+
+  const lp = ctx.createBiquadFilter()
+  lp.type = 'lowpass'
+  lp.frequency.setValueAtTime(Math.min(f * 14, 11000), t)
+  lp.frequency.exponentialRampToValueAtTime(Math.max(f * 3, 700), end)
+  node.connect(lp).connect(dest)
+
+  for (const [mul, amp] of PARTIALS.piano) {
+    const osc = ctx.createOscillator()
+    osc.type = mul === 1 ? 'triangle' : 'sine'
+    osc.frequency.value = f * mul
+    const g = ctx.createGain()
+    g.gain.value = amp
+    osc.connect(g).connect(node)
+    osc.start(t)
+    osc.stop(end)
+  }
+}
+
+const flute: Voice = (ctx, dest, t, p) => {
+  const f = p.freq ?? 440
+  const dur = p.dur ?? 0.3
+  const { node, end } = adsr(ctx, t, p.gain * 0.8, dur, {
+    attack: 0.07,
+    decay: 0.08,
+    sustain: 0.85,
+    release: 0.14 * p.decay,
+  })
+  node.connect(dest)
+
+  const osc = ctx.createOscillator()
+  osc.type = 'sine'
+  osc.frequency.value = f
+  const second = ctx.createOscillator()
+  second.type = 'sine'
+  second.frequency.value = f * 2
+  const secondGain = ctx.createGain()
+  secondGain.gain.value = 0.12
+
+  vibrato(ctx, t, 5.2, 22, f, osc.frequency, end)
+  osc.connect(node)
+  second.connect(secondGain).connect(node)
+
+  // dih: tiho šumenje skozi visokoprepustni filter
+  const breath = noise(ctx)
+  const hp = ctx.createBiquadFilter()
+  hp.type = 'highpass'
+  hp.frequency.value = Math.max(f * 2, 1800)
+  const bg = ctx.createGain()
+  bg.gain.value = 0.05
+  breath.connect(hp).connect(bg).connect(node)
+
+  osc.start(t); second.start(t); breath.start(t)
+  osc.stop(end); second.stop(end); breath.stop(end)
+}
+
+const strings: Voice = (ctx, dest, t, p) => {
+  const f = p.freq ?? 440
+  const dur = p.dur ?? 0.5
+  const { node, end } = adsr(ctx, t, p.gain * 0.6, dur, {
+    attack: 0.16,
+    decay: 0.2,
+    sustain: 0.8,
+    release: 0.35 * p.decay,
+  })
+
+  const lp = ctx.createBiquadFilter()
+  lp.type = 'lowpass'
+  lp.frequency.setValueAtTime(Math.min(f * 4, 1600), t)
+  lp.frequency.linearRampToValueAtTime(Math.min(f * 7, 3200), t + 0.5)
+  node.connect(lp).connect(dest)
+
+  // trije rahlo razglašeni glasovi dajo "zbor" godal
+  for (const cents of [-7, 0, 7]) {
+    const osc = ctx.createOscillator()
+    osc.type = 'sawtooth'
+    osc.frequency.value = f * Math.pow(2, cents / 1200)
+    const g = ctx.createGain()
+    g.gain.value = 0.34
+    osc.connect(g).connect(node)
+    osc.start(t)
+    osc.stop(end)
+  }
+}
+
+const pluck: Voice = (ctx, dest, t, p) => {
+  const f = p.freq ?? 440
+  const dur = Math.min(p.dur ?? 0.2, 0.5) * p.decay
+  const { node, end } = adsr(ctx, t, p.gain * 0.7, dur, {
+    attack: 0.003,
+    decay: 0.25 * p.decay,
+    sustain: 0.12,
+    release: 0.18,
+  })
+
+  const lp = ctx.createBiquadFilter()
+  lp.type = 'lowpass'
+  lp.Q.value = 3
+  lp.frequency.setValueAtTime(Math.min(f * 10, 8000), t)
+  lp.frequency.exponentialRampToValueAtTime(Math.max(f * 1.6, 400), t + dur + 0.2)
+  node.connect(lp).connect(dest)
+
+  const osc = ctx.createOscillator()
+  osc.type = 'sawtooth'
+  osc.frequency.value = f
+  osc.connect(node)
+  osc.start(t)
+  osc.stop(end)
+}
+
+const organ: Voice = (ctx, dest, t, p) => {
+  const f = p.freq ?? 440
+  const dur = p.dur ?? 0.3
+  const { node, end } = adsr(ctx, t, p.gain * 0.5, dur, {
+    attack: 0.015,
+    decay: 0.05,
+    sustain: 0.9,
+    release: 0.1 * p.decay,
+  })
+  node.connect(dest)
+
+  for (const [mul, amp] of PARTIALS.organ) {
+    const osc = ctx.createOscillator()
+    osc.type = 'sine'
+    osc.frequency.value = f * mul
+    const g = ctx.createGain()
+    g.gain.value = amp * 0.5
+    osc.connect(g).connect(node)
+    osc.start(t)
+    osc.stop(end)
+  }
+}
+
 export const VOICES: Record<string, Voice> = {
+  piano,
+  flute,
+  strings,
+  pluck,
+  organ,
   kick,
   snare: buildSnare(1800, 190),
   clap,

@@ -1,5 +1,5 @@
-import { INSTRUMENTS, emptySteps, makeTrack } from '../audio/instruments'
-import type { Clip, Pattern, Song, Step, Track, Vel } from '../types'
+import { INSTRUMENTS, emptySteps, makeTrack, melodicOf } from '../audio/instruments'
+import type { Clip, Melody, Note, Pattern, Song, Step, Track, Vel } from '../types'
 import { STEPS_PER_BAR } from '../types'
 
 export const PATTERN_COLORS = ['#6ee7ff', '#ff8fab', '#ffd166', '#a0e548', '#c792ea', '#ff9f5a', '#5ad1c2', '#f56565']
@@ -11,15 +11,48 @@ export const barsOf = (p: Pattern) => Math.max(1, Math.round(p.length / STEPS_PE
 export const patternById = (song: Song, id: string) => song.patterns.find((p) => p.id === id)
 export const currentPattern = (song: Song) => patternById(song, song.currentPattern) ?? song.patterns[0]
 
-function makePattern(name: string, colorIndex: number, rows: string[] = [], length = 16): Pattern {
+export function makeMelody(voice: string, notes: Note[] = []): Melody {
+  const def = melodicOf(voice)
+  return { id: uid('m'), voice, name: def.name, notes, level: def.level, decay: 1, muted: false, soloed: false }
+}
+
+function makePattern(name: string, colorIndex: number, rows: string[] = [], melodies: Melody[] = [], length = 16): Pattern {
   return {
     id: uid('p'),
     name,
     color: PATTERN_COLORS[colorIndex % PATTERN_COLORS.length],
     length,
     tracks: INSTRUMENTS.map((inst, i) => makeTrack(inst.voice, rows[i] ?? '', length)),
+    melodies: melodies.length ? melodies : [makeMelody('piano'), makeMelody('flute')],
   }
 }
+
+/** Akord kot MIDI note: koren + kvaliteta. */
+export function chordNotes(root: number, quality: 'dur' | 'mol' | 'zmanjšan'): number[] {
+  const third = quality === 'dur' ? 4 : 3
+  const fifth = quality === 'zmanjšan' ? 6 : 7
+  return [root, root + third, root + fifth]
+}
+
+/** Sedem diatoničnih akordov izbrane tonalitete. */
+export function diatonicChords(root: number, mode: 'dur' | 'mol') {
+  const steps = mode === 'dur' ? [0, 2, 4, 5, 7, 9, 11] : [0, 2, 3, 5, 7, 8, 10]
+  const qualities: ('dur' | 'mol' | 'zmanjšan')[] =
+    mode === 'dur'
+      ? ['dur', 'mol', 'mol', 'dur', 'dur', 'mol', 'zmanjšan']
+      : ['mol', 'zmanjšan', 'dur', 'mol', 'mol', 'dur', 'dur']
+  const numerals = mode === 'dur' ? ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'] : ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII']
+  return steps.map((s, i) => ({
+    root: root + s,
+    quality: qualities[i],
+    numeral: numerals[i],
+    notes: chordNotes(root + s, qualities[i]),
+  }))
+}
+
+/** Skupina not, ki se začnejo hkrati — akord ali posamezen ton. */
+const note = (step: number, midis: number[], len: number, v: Vel = 2): Note[] =>
+  midis.map((midi) => ({ step, midi, len, v }))
 
 export function defaultSong(): Song {
   const beat = makePattern('Beat', 0, [
@@ -32,6 +65,10 @@ export function defaultSong(): Song {
     '................',
     'X..x..X...x..X..',
     '................',
+  ], [
+    // C-dur in a-mol akord, vsak pol takta
+    makeMelody('piano', [...note(0, [60, 64, 67], 8), ...note(8, [57, 60, 64], 8)]),
+    makeMelody('flute'),
   ])
   const fill = makePattern('Fill', 1, [
     'X.......X...X.X.',
@@ -54,6 +91,9 @@ export function defaultSong(): Song {
     '................',
     'X..x..X...x..X..',
     'x...x.x...x.x...',
+  ], [
+    makeMelody('piano', [...note(0, [65, 69, 72], 8), ...note(8, [67, 71, 74], 8)]),
+    makeMelody('flute', [...note(0, [72], 3), ...note(4, [76], 3), ...note(8, [79], 4), ...note(13, [76], 3)]),
   ])
 
   const clips: Clip[] = [
@@ -101,6 +141,14 @@ export type Action =
   | { t: 'track'; track: number; patch: Partial<Track> }
   | { t: 'rowClear'; track: number }
   | { t: 'rowFill'; track: number; every: number; v: Vel }
+  | { t: 'noteAdd'; melody: number; notes: Note[] }
+  | { t: 'noteRemove'; melody: number; step: number; midi: number }
+  | { t: 'notePatch'; melody: number; step: number; midi: number; patch: Partial<Note> }
+  | { t: 'melodyPatch'; melody: number; patch: Partial<Melody> }
+  | { t: 'melodyAdd'; voice: string }
+  | { t: 'melodyClear'; melody: number }
+  | { t: 'melodyDelete'; melody: number }
+  | { t: 'melodyTranspose'; melody: number; by: number }
   | { t: 'patternSelect'; id: string }
   | { t: 'patternAdd' }
   | { t: 'patternPatch'; id: string; patch: Partial<Pattern> }
@@ -121,6 +169,10 @@ function mapCurrent(song: Song, fn: (p: Pattern) => Pattern): Song {
 
 function mapTracks(p: Pattern, index: number, fn: (t: Track) => Track): Pattern {
   return { ...p, tracks: p.tracks.map((t, i) => (i === index ? fn(t) : t)) }
+}
+
+function mapMelody(song: Song, index: number, fn: (m: Melody) => Melody): Song {
+  return mapCurrent(song, (p) => ({ ...p, melodies: p.melodies.map((m, i) => (i === index ? fn(m) : m)) }))
 }
 
 export function reducer(song: Song, a: Action): Song {
@@ -151,6 +203,43 @@ export function reducer(song: Song, a: Action): Song {
           steps: t.steps.map((s, i) => (i % a.every === 0 ? { v: a.v } : s)),
         })),
       )
+
+    case 'noteAdd':
+      return mapMelody(song, a.melody, (m) => ({
+        ...m,
+        // ista višina na istem koraku obstaja samo enkrat
+        notes: [...m.notes.filter((n) => !a.notes.some((x) => x.step === n.step && x.midi === n.midi)), ...a.notes],
+      }))
+
+    case 'noteRemove':
+      return mapMelody(song, a.melody, (m) => ({
+        ...m,
+        notes: m.notes.filter((n) => !(n.step === a.step && n.midi === a.midi)),
+      }))
+
+    case 'notePatch':
+      return mapMelody(song, a.melody, (m) => ({
+        ...m,
+        notes: m.notes.map((n) => (n.step === a.step && n.midi === a.midi ? { ...n, ...a.patch } : n)),
+      }))
+
+    case 'melodyPatch':
+      return mapMelody(song, a.melody, (m) => ({ ...m, ...a.patch }))
+
+    case 'melodyClear':
+      return mapMelody(song, a.melody, (m) => ({ ...m, notes: [] }))
+
+    case 'melodyTranspose':
+      return mapMelody(song, a.melody, (m) => ({
+        ...m,
+        notes: m.notes.map((n) => ({ ...n, midi: Math.min(108, Math.max(21, n.midi + a.by)) })),
+      }))
+
+    case 'melodyAdd':
+      return mapCurrent(song, (p) => ({ ...p, melodies: [...p.melodies, makeMelody(a.voice)] }))
+
+    case 'melodyDelete':
+      return mapCurrent(song, (p) => ({ ...p, melodies: p.melodies.filter((_, i) => i !== a.melody) }))
 
     case 'patternSelect':
       return { ...song, currentPattern: a.id }

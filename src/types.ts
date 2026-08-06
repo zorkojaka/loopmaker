@@ -22,6 +22,30 @@ export interface Track {
   soloed: boolean
 }
 
+/** Nota na klavirski mreži. */
+export interface Note {
+  /** začetek v korakih od začetka vzorca */
+  step: number
+  /** MIDI višina (60 = C4) */
+  midi: number
+  /** dolžina v korakih */
+  len: number
+  v: Vel
+}
+
+/** Melodični kanal — akordi in melodije, urejani v piano rollu. */
+export interface Melody {
+  id: string
+  voice: string
+  name: string
+  notes: Note[]
+  level: number
+  /** množitelj izzvena */
+  decay: number
+  muted: boolean
+  soloed: boolean
+}
+
 export interface Pattern {
   id: string
   name: string
@@ -29,6 +53,7 @@ export interface Pattern {
   /** dolžina v korakih (16 = en takt) */
   length: number
   tracks: Track[]
+  melodies: Melody[]
 }
 
 /** Blok vzorca na časovnici skladbe. */

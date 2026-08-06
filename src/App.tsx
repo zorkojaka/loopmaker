@@ -7,7 +7,8 @@ import { PatternTabs } from './components/PatternTabs'
 import { PatternView } from './components/PatternView'
 import { SongView } from './components/SongView'
 import { TopBar } from './components/TopBar'
-import { currentPattern, defaultSong, reducer } from './state/song'
+import { PianoRoll } from './components/PianoRoll'
+import { currentPattern, defaultSong, makeMelody, reducer } from './state/song'
 import type { Song } from './types'
 
 const STORAGE_KEY = 'loopmaker.song.v2'
@@ -20,7 +21,15 @@ function loadSong(): Song {
     // groba preverba: shema se je med razvojem že spremenila
     if (!parsed?.patterns?.length || !parsed.patterns[0]?.tracks?.[0]?.steps?.[0]) return defaultSong()
     if (typeof parsed.patterns[0].tracks[0].steps[0] !== 'object') return defaultSong()
-    return { ...defaultSong(), ...parsed }
+    return {
+      ...defaultSong(),
+      ...parsed,
+      // vzorci iz starejših različic nimajo melodičnih kanalov
+      patterns: parsed.patterns.map((p) => ({
+        ...p,
+        melodies: p.melodies?.length ? p.melodies : [makeMelody('piano'), makeMelody('flute')],
+      })),
+    }
   } catch {
     return defaultSong()
   }
@@ -31,6 +40,8 @@ export default function App() {
   const [playing, setPlaying] = useState(false)
   const [selectedTrack, setSelectedTrack] = useState(0)
   const [selectedClip, setSelectedClip] = useState<string | null>(null)
+  /** indeks melodičnega kanala, ki je odprt v klaviaturi; null = ritmična mreža */
+  const [openMelody, setOpenMelody] = useState<number | null>(null)
   const [menu, setMenu] = useState<MenuState | null>(null)
 
   // engine bere vedno zadnje stanje, ne da bi ga bilo treba ustavljati
@@ -70,6 +81,8 @@ export default function App() {
 
   const pattern = currentPattern(song)
   const track = Math.min(selectedTrack, pattern.tracks.length - 1)
+  // kanal je lahko medtem izbrisan ali pa smo zamenjali vzorec z manj kanali
+  const melodyIndex = openMelody !== null && openMelody < pattern.melodies.length ? openMelody : null
 
   return (
     <div className="app" onContextMenu={(e) => e.preventDefault()}>
@@ -85,13 +98,23 @@ export default function App() {
       <PatternTabs song={song} dispatch={dispatch} openMenu={openMenu} />
 
       <main className="stage">
-        {song.mode === 'pattern' ? (
+        {song.mode === 'pattern' && melodyIndex !== null ? (
+          <PianoRoll
+            pattern={pattern}
+            melodyIndex={melodyIndex}
+            engine={engine}
+            dispatch={dispatch}
+            openMenu={openMenu}
+            onBack={() => setOpenMelody(null)}
+          />
+        ) : song.mode === 'pattern' ? (
           <PatternView
             pattern={pattern}
             engine={engine}
             dispatch={dispatch}
             selectedTrack={track}
             onSelectTrack={setSelectedTrack}
+            onOpenMelody={setOpenMelody}
             openMenu={openMenu}
           />
         ) : (
@@ -111,6 +134,7 @@ export default function App() {
         pattern={pattern}
         selectedTrack={track}
         selectedClip={selectedClip}
+        melodyIndex={melodyIndex}
         engine={engine}
         dispatch={dispatch}
       />

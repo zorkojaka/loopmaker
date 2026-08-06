@@ -1,6 +1,6 @@
 import type { Dispatch } from 'react'
 import type { Engine } from '../audio/engine'
-import { instrumentOf, noteName } from '../audio/instruments'
+import { instrumentOf, melodicOf, noteName } from '../audio/instruments'
 import { barsOf, patternById } from '../state/song'
 import type { Action } from '../state/song'
 import type { Pattern, Song } from '../types'
@@ -10,6 +10,7 @@ interface Props {
   pattern: Pattern
   selectedTrack: number
   selectedClip: string | null
+  melodyIndex: number | null
   engine: Engine
   dispatch: Dispatch<Action>
 }
@@ -43,7 +44,55 @@ function Slider({
 }
 
 /** Spodnji pas: parametri tistega, kar je izbrano — instrument ali blok. */
-export function Inspector({ song, pattern, selectedTrack, selectedClip, engine, dispatch }: Props) {
+export function Inspector({ song, pattern, selectedTrack, selectedClip, melodyIndex, engine, dispatch }: Props) {
+  if (song.mode === 'pattern' && melodyIndex !== null) {
+    const melody = pattern.melodies[melodyIndex]
+    const def = melodicOf(melody.voice)
+    return (
+      <footer className="inspector" style={{ '--track': def.color } as React.CSSProperties}>
+        <div className="inspector__head">
+          <span className="inspector__name">{melody.name}</span>
+          <span className="inspector__meta">{melody.notes.length} not</span>
+          <button
+            className={`chip${melody.muted ? ' chip--on' : ''}`}
+            onClick={() => dispatch({ t: 'melodyPatch', melody: melodyIndex, patch: { muted: !melody.muted } })}
+          >
+            Mute
+          </button>
+          <button
+            className={`chip${melody.soloed ? ' chip--on' : ''}`}
+            onClick={() => dispatch({ t: 'melodyPatch', melody: melodyIndex, patch: { soloed: !melody.soloed } })}
+          >
+            Solo
+          </button>
+          <button className="chip" onClick={() => dispatch({ t: 'melodyClear', melody: melodyIndex })}>
+            Počisti
+          </button>
+        </div>
+        <div className="inspector__sliders">
+          <Slider
+            label="Glasnost"
+            value={melody.level}
+            min={0}
+            max={1}
+            step={0.01}
+            display={`${Math.round(melody.level * 100)}%`}
+            onChange={(v) => dispatch({ t: 'melodyPatch', melody: melodyIndex, patch: { level: v } })}
+          />
+          <Slider
+            label="Izzven"
+            value={melody.decay}
+            min={0.2}
+            max={2}
+            step={0.05}
+            display={`${melody.decay.toFixed(2)}×`}
+            onChange={(v) => dispatch({ t: 'melodyPatch', melody: melodyIndex, patch: { decay: v } })}
+          />
+        </div>
+      </footer>
+    )
+  }
+
   if (song.mode === 'song') {
     const clip = song.clips.find((c) => c.id === selectedClip)
     const clipPattern = clip && patternById(song, clip.patternId)

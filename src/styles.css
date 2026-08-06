@@ -13,6 +13,7 @@
   --gutter: 96px;
   --cell-h: 32px;
   --lane-h: 46px;
+  --note-h: 22px;
   --ruler-h: 22px;
   --gap: 4px;
 
@@ -501,6 +502,179 @@ button:active {
   background: var(--pattern);
   border-color: #fff;
   box-shadow: 0 0 14px color-mix(in srgb, var(--pattern) 45%, transparent);
+}
+
+/* --- klaviatura (piano roll) --------------------------------------------- */
+
+.roll {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.roll__bar,
+.chords {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.roll__name {
+  font-weight: 700;
+  color: var(--track);
+  padding: 0 4px;
+}
+
+.roll__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
+
+.roll__meta {
+  font-size: 11px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.chords {
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.chords__key {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 8px;
+}
+
+.chords__mode {
+  display: flex;
+  gap: 4px;
+}
+
+.chord {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  padding: 8px 10px;
+  background: var(--bg);
+}
+
+.chord strong {
+  font-size: 14px;
+}
+
+.chord em {
+  font-style: normal;
+  font-size: 12px;
+}
+
+.chord span {
+  font-size: 9px;
+  color: var(--dim);
+  margin-left: 4px;
+}
+
+.chords__hint {
+  font-size: 11px;
+  color: var(--dim);
+  margin-left: auto;
+}
+
+.timeline__gutter--keys {
+  gap: 2px;
+}
+
+.key {
+  height: var(--note-h);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: #0a0c12;
+  background: #d7dce8;
+  border: 1px solid #0a0c12;
+  border-radius: 0 5px 5px 0;
+}
+
+.key--black {
+  color: #aab2c6;
+  background: #2a3145;
+  width: 74%;
+}
+
+.rows--roll {
+  gap: 2px;
+}
+
+.prow {
+  display: grid;
+  gap: 2px;
+  position: relative;
+}
+
+.pslot {
+  height: var(--note-h);
+  border-radius: 4px;
+  background: #14192a;
+  border: 1px solid #1b2133;
+}
+
+.prow--black .pslot {
+  background: #10141f;
+}
+
+.pslot--beat {
+  border-left-color: #333c56;
+}
+
+.pslot--caret {
+  background: #1e2740;
+  border-color: #3c4870;
+}
+
+.pslot--play {
+  background: #1b2233;
+}
+
+.pnote {
+  position: absolute;
+  top: 0;
+  height: var(--note-h);
+  padding: 0;
+  border-radius: 5px;
+  background: var(--track);
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--track) 40%, transparent);
+}
+
+.pnote--v1 {
+  opacity: 0.45;
+}
+
+.pnote--v3 {
+  box-shadow: 0 0 14px var(--track);
+}
+
+.glabel--melody .glabel__flag {
+  color: var(--track);
+}
+
+.row--melody {
+  cursor: pointer;
 }
 
 /* --- trak playheada ------------------------------------------------------ */

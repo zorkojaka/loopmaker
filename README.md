@@ -8,6 +8,7 @@ Aplikacija za izdelavo glasbe v brskalniku — mišljena za telefon, brez namest
 
 - **Faza 1:** step sequencer — 9 sintetiziranih instrumentov, vzorci, swing, akcenti. ✔
 - **Faza 2:** aranžma — poljubno število vzorcev, bloki na časovnici, playhead, kontekstni meniji. ✔
+- **Faza 2b:** melodika — klavir, flavta, godala, brenkalo, orgle; piano roll z akordi. ✔
 - **Faza 3:** looper — snemanje z mikrofona telefona, overdub, kalibracija latence.
 - **Faza 4:** izvoz v WAV, PWA (offline), deljenje povezave.
 - **Faza 5:** kamera kot kontroler (sledenje roki prek MediaPipe).
@@ -22,6 +23,17 @@ Aplikacija ima dva pogleda, preklop je v zgornji vrstici:
 - **Desni klik / dolg pritisk na celico**: ghost, normalno, akcent, **roll ×2–×4**, izbriši.
 - **Desni klik na ime instrumenta**: mute, solo, zapolni vsako 4- ali 8-tinko, zbriši vrsto.
 - **Klik na trak s številkami** premakne playhead na tisti korak.
+
+**Klaviatura** — tap na melodični kanal (Klavir, Flavta …) v mreži odpre piano roll.
+
+- Navpično je višina tona, vodoravno čas; **akord je več not druga nad drugo**.
+- **Tap v polje** doda noto in jo predposluša, **tap na noto** jo odstrani.
+- **Vrstica akordov** postavi cel trozvok naenkrat: izberi tonaliteto (C…B, dur/mol) in klikni
+  stopnjo (I, ii, IV, V …). Vsak akord se vstavi na kazalec in ga premakne naprej.
+- **Desni klik na noto**: dolžina (1–8 korakov), glasnost, izbriši. **Desni klik v prazno**: zgradi
+  dur/mol/zmanjšan akord od tiste note.
+- **Tipke levo** so igralne — tap zaigra ton. **−8va / +8va** premakneta okno za oktavo.
+- **+ glasbilo** pod seznamom instrumentov doda nov melodični kanal.
 
 **Skladba** — bloki vzorcev na časovnici, kot playlist v FL Studiu.
 
