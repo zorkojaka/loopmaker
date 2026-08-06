@@ -37,14 +37,24 @@ export function PianoRoll({ pattern, melodyIndex, engine, dispatch, openMenu, on
   const def = melodicOf(melody.voice)
   const columns: CSSProperties = { gridTemplateColumns: `repeat(${pattern.length}, minmax(26px, 1fr))` }
   const rows = Array.from({ length: ROWS }, (_, i) => low + ROWS - 1 - i)
-  // akorde postavimo tako, da so vse tri note še vidne v oknu
-  let chordBase = low + 12 + root
-  while (chordBase + 11 > low + ROWS - 1) chordBase -= 12
+  const chordBase = low + 12 + root
+
+  /**
+   * Zloži noto v vidno okno. Pri akordih to pomeni obrat (inverzijo) — ton, ki
+   * bi ušel čez rob, se preseli za oktavo niže. Glasbeno je to povsem običajno.
+   */
+  const fit = (midi: number) => {
+    let m = midi
+    while (m > low + ROWS - 1) m -= 12
+    while (m < low) m += 12
+    return m
+  }
 
   const addNotes = (step: number, midis: number[], velocity: Vel = 2) => {
-    const notes: Note[] = midis.map((midi) => ({ step, midi, len, v: velocity }))
+    const fitted = midis.map(fit)
+    const notes: Note[] = fitted.map((midi) => ({ step, midi, len, v: velocity }))
     dispatch({ t: 'noteAdd', melody: melodyIndex, notes })
-    if (!engine.playing) midis.forEach((m) => void engine.previewNote(melody.voice, m, melody.level))
+    if (!engine.playing) fitted.forEach((m) => void engine.previewNote(melody.voice, m, melody.level))
   }
 
   const stampChord = (midis: number[]) => {
