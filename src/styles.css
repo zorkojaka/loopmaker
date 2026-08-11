@@ -1115,6 +1115,8 @@ button:active {
 
 .rows--roll {
   gap: 2px;
+  /* plast not se postavlja glede na mrežo, zato mora biti ta izhodišče */
+  position: relative;
 }
 
 .prow {
@@ -1147,15 +1149,45 @@ button:active {
   background: #1b2233;
 }
 
+/* plast not leži čez mrežo; reže pod njo ostanejo dostopne za nove note */
+.pnotes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pnotes .pnote {
+  pointer-events: auto;
+}
+
 .pnote {
   position: absolute;
-  top: 0;
-  height: var(--note-h);
+  touch-action: none;
+  cursor: grab;
   padding: 0;
   border-radius: 5px;
   background: var(--track);
   border: 1px solid rgba(0, 0, 0, 0.45);
   box-shadow: 0 0 8px color-mix(in srgb, var(--track) 40%, transparent);
+}
+
+/* prijemalo za daljšanje na desnem robu note */
+.pnote__grip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  cursor: ew-resize;
+  border-radius: 0 5px 5px 0;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.35));
+}
+
+.pnote--drag {
+  cursor: grabbing;
+  filter: brightness(1.2);
+  box-shadow: 0 0 16px var(--track);
+  z-index: 3;
 }
 
 .pnote--v1 {

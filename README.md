@@ -90,7 +90,10 @@ Vse je na enem zaslonu. Vsak loop je svoja vrstica:
 - Navpično višina tona, vodoravno čas; **akord je več not druga nad drugo**.
 - **Vrstica akordov**: izberi tonaliteto (C…B, dur/mol) in klikni stopnjo (I, ii, IV, V …) —
   trozvok se vstavi na kazalec in ga premakne naprej.
-- **Tipke levo** so igralne. **−8va / +8va** premakneta okno za oktavo.
+- **Note se vlečejo**: povleci telo note za premik po času in višini, povleci **desni rob**
+  za krajšanje ali daljšanje. Kratek dotik noto samo predposluša, brisanje je v meniju.
+- **Tipke levo** so igralne. **−8va / +8va** premakneta okno za oktavo; ob odprtju se okno
+  samo postavi tako, da so note loopa vidne.
 - **Izmenjava A/B**: nota, označena z **A**, igra v 1., 3., 5. obhodu loopa, nota z **B** pa v
   2., 4., 6. Dve noti na istem koraku — ena A, ena B — se tako menjata iz obhoda v obhod in
   melodija se ne ponavlja tako suho. V meniju note je tudi **Naredi par A/B tukaj**, ki

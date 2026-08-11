@@ -230,6 +230,7 @@ export type Action =
   | { t: 'noteAdd'; id: string; notes: Note[] }
   | { t: 'noteRemove'; id: string; step: number; midi: number }
   | { t: 'notePatch'; id: string; step: number; midi: number; patch: Partial<Note> }
+  | { t: 'noteMove'; id: string; from: { step: number; midi: number }; to: { step: number; midi: number } }
   | { t: 'sectionAdd' }
   | { t: 'sectionPatch'; id: string; patch: Partial<Section> }
   | { t: 'sectionDelete'; id: string }
@@ -325,6 +326,20 @@ export function reducer(song: Song, a: Action): Song {
         ...l,
         notes: l.notes.map((n) => (n.step === a.step && n.midi === a.midi ? { ...n, ...a.patch } : n)),
       }))
+
+    case 'noteMove':
+      return mapLoop(song, a.id, (l) => {
+        const moving = l.notes.find((n) => n.step === a.from.step && n.midi === a.from.midi)
+        if (!moving) return l
+        // nota se premakne na mestu v seznamu, da med vlečenjem ohrani identiteto;
+        // če na cilju že kdo stoji, ga premaknjena nota nadomesti
+        return {
+          ...l,
+          notes: l.notes
+            .filter((n) => n === moving || !(n.step === a.to.step && n.midi === a.to.midi))
+            .map((n) => (n === moving ? { ...n, step: a.to.step, midi: a.to.midi } : n)),
+        }
+      })
 
     case 'sectionAdd': {
       const section = makeSection(song)

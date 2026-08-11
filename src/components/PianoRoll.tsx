@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CSSProperties, Dispatch } from 'react'
 import type { Engine } from '../audio/engine'
 import { isBlackKey, midiName } from '../audio/instruments'
@@ -17,18 +17,34 @@ interface Props {
 }
 
 const ROWS = 24
+/** višina vrstice in razmik — JS in CSS morata biti tu enakih misli */
+const ROW_H = 22
+const ROW_GAP = 2
 const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const LENGTHS = [1, 2, 4, 8]
 
 /** Klavirska mreža: navpično višina tona, vodoravno čas. Akordi so note druga nad drugo. */
+/** Okno se ob odprtju postavi tako, da so note loopa vidne. */
+function initialLow(loop: Loop): number {
+  if (!loop.notes.length) return 48 // C3
+  const lowest = Math.min(...loop.notes.map((n) => n.midi))
+  const highest = Math.max(...loop.notes.map((n) => n.midi))
+  const start = Math.max(lowest - 2, highest - ROWS + 1)
+  return Math.min(84, Math.max(24, start))
+}
+
 export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
-  const [low, setLow] = useState(48) // C3
+  const [low, setLow] = useState(() => initialLow(loop))
   const [len, setLen] = useState(4)
   const [caret, setCaret] = useState(0)
   const [root, setRoot] = useState(0) // C
   const [mode, setMode] = useState<'dur' | 'mol'>('dur')
 
   const { lineRef, scrollRef, step: playStep } = usePlayhead(engine, loop.length)
+  const drag = useRef<{ mode: 'move' | 'resize'; step: number; midi: number; len: number; moved: boolean; note: HTMLElement } | null>(
+    null,
+  )
+  const gridRef = useRef<HTMLDivElement | null>(null)
 
   const columns: CSSProperties = { gridTemplateColumns: `repeat(${loop.length}, minmax(26px, 1fr))` }
   const rows = Array.from({ length: ROWS }, (_, i) => low + ROWS - 1 - i)
@@ -55,6 +71,62 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
   const stampChord = (midis: number[]) => {
     addNotes(caret, midis)
     setCaret((c) => (c + len) % loop.length)
+  }
+
+  /**
+   * Katera reža mreže je pod prstom. Računamo iz geometrije, ne iz zadetka
+   * elementa: nota, ki jo vlečemo, drži prst (pointer capture), zato bi ji
+   * moral za `elementFromPoint` odvzeti zadetke — s tem pa bi brskalnik
+   * sledenje prstu prekinil.
+   */
+  const slotAt = (x: number, y: number): { step: number; midi: number } | null => {
+    const grid = gridRef.current
+    if (!grid) return null
+    const r = grid.getBoundingClientRect()
+    const step = Math.floor(((x - r.left) / r.width) * loop.length)
+    const row = Math.floor((y - r.top) / (ROW_H + ROW_GAP))
+    if (step < 0 || step >= loop.length || row < 0 || row >= ROWS) return null
+    return { step, midi: low + ROWS - 1 - row }
+  }
+
+  const beginDrag = (e: React.PointerEvent, n: Note, mode: 'move' | 'resize') => {
+    const target = e.currentTarget as HTMLElement
+    const note = target.closest<HTMLElement>('.pnote')
+    if (!note) return
+    drag.current = { mode, step: n.step, midi: n.midi, len: n.len, moved: false, note }
+    target.setPointerCapture?.(e.pointerId)
+  }
+
+  const onDragMove = (e: React.PointerEvent) => {
+    const d = drag.current
+    if (!d) return
+    if (!d.moved) {
+      d.moved = true
+      d.note.classList.add('pnote--drag')
+    }
+    const hit = slotAt(e.clientX, e.clientY)
+    if (!hit) return
+
+    if (d.mode === 'move') {
+      if (hit.step === d.step && hit.midi === d.midi) return
+      dispatch({ t: 'noteMove', id: loop.id, from: { step: d.step, midi: d.midi }, to: hit })
+      d.step = hit.step
+      d.midi = hit.midi
+    } else {
+      const len = Math.max(1, Math.min(hit.step - d.step + 1, loop.length - d.step))
+      if (len === d.len) return
+      d.len = len
+      dispatch({ t: 'notePatch', id: loop.id, step: d.step, midi: d.midi, patch: { len } })
+    }
+  }
+
+  const onDragEnd = () => {
+    const d = drag.current
+    drag.current = null
+    if (!d) return
+    d.note.classList.remove('pnote--drag')
+    // kratek dotik brez premika samo predposluša — brisanje je v meniju
+    if (!d.moved && !engine.playing) void engine.previewNote(loop.voice, d.midi + loop.tune, loop.level)
   }
 
   const noteMenu = (n: Note): MenuItem[] => [
@@ -179,12 +251,15 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
               ))}
             </div>
 
-            <div className="rows rows--roll">
+            <div className="rows rows--roll" style={{ gap: ROW_GAP }} ref={gridRef}>
               {rows.map((midi) => (
                 <div key={midi} className={`prow${isBlackKey(midi) ? ' prow--black' : ''}`} style={columns}>
                   {Array.from({ length: loop.length }, (_, step) => (
                     <div
                       key={step}
+                      data-step={step}
+                      data-midi={midi}
+                      style={{ height: ROW_H }}
                       className={`pslot${step % 4 === 0 ? ' pslot--beat' : ''}${step === caret ? ' pslot--caret' : ''}${step === playStep ? ' pslot--play' : ''}`}
                       onClick={() => {
                         setCaret(step)
@@ -197,35 +272,59 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
                       {...longPress((x, y) => openMenu(x, y, emptyMenu(step, midi)))}
                     />
                   ))}
-
-                  {loop.notes
-                    .filter((n) => n.midi === midi)
-                    .map((n) => {
-                      const press = longPress((x, y) => openMenu(x, y, noteMenu(n)))
-                      return (
-                        <button
-                          key={`${n.step}-${n.midi}`}
-                          className={`pnote pnote--v${n.v}`}
-                          style={
-                            {
-                              '--track': loop.color,
-                              left: `${(n.step / loop.length) * 100}%`,
-                              width: `${(Math.min(n.len, loop.length - n.step) / loop.length) * 100}%`,
-                            } as CSSProperties
-                          }
-                          {...press}
-                          onClick={() => dispatch({ t: 'noteRemove', id: loop.id, step: n.step, midi: n.midi })}
-                          onContextMenu={(e) => {
-                            e.preventDefault()
-                            openMenu(e.clientX, e.clientY, noteMenu(n))
-                          }}
-                        >
-                          {n.alt && <span className="pnote__alt">{n.alt}</span>}
-                        </button>
-                      )
-                    })}
                 </div>
               ))}
+
+              {/*
+                Note so v svoji plasti nad mrežo: tako ostane vsaka isti element,
+                tudi ko med vlečenjem zamenja vrstico, in prst je ne izgubi.
+              */}
+              <div className="pnotes">
+                {loop.notes.map((n, i) => {
+                  const row = low + ROWS - 1 - n.midi
+                  if (row < 0 || row >= ROWS) return null
+                  const press = longPress((x, y) => openMenu(x, y, noteMenu(n)))
+                  return (
+                    <div
+                      key={i}
+                      className={`pnote pnote--v${n.v}`}
+                      style={
+                        {
+                          '--track': loop.color,
+                          top: row * (ROW_H + ROW_GAP),
+                          height: ROW_H,
+                          left: `${(n.step / loop.length) * 100}%`,
+                          width: `${(Math.min(n.len, loop.length - n.step) / loop.length) * 100}%`,
+                        } as CSSProperties
+                      }
+                      {...press}
+                      onPointerDown={(e) => {
+                        press.onPointerDown(e)
+                        beginDrag(e, n, 'move')
+                      }}
+                      onPointerMove={onDragMove}
+                      onPointerUp={onDragEnd}
+                      onPointerCancel={onDragEnd}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        openMenu(e.clientX, e.clientY, noteMenu(n))
+                      }}
+                    >
+                      {n.alt && <span className="pnote__alt">{n.alt}</span>}
+                      <span
+                        className="pnote__grip"
+                        onPointerDown={(e) => {
+                          e.stopPropagation()
+                          beginDrag(e, n, 'resize')
+                        }}
+                        onPointerMove={onDragMove}
+                        onPointerUp={onDragEnd}
+                        onPointerCancel={onDragEnd}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="playhead" ref={lineRef} />
