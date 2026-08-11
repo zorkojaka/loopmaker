@@ -88,6 +88,10 @@ export class Engine {
     return this.samples.has(id)
   }
 
+  getSample(id: string): StoredSample | null {
+    return this.samples.get(id) ?? null
+  }
+
   /** AudioBuffer nastane šele, ko obstaja kontekst — zato lena izdelava. */
   private bufferFor(id: string): AudioBuffer | null {
     const cached = this.buffers.get(id)

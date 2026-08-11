@@ -19,7 +19,7 @@ export function cloneLoop(loop: Loop): Loop {
 }
 
 /** Posneti loopi nimajo glasu iz knjižnice, zato svoje privzetke. */
-const SAMPLE_DEF = { name: 'Posnetek', color: '#ff9f5a', level: 0.9 }
+const SAMPLE_DEF = { name: 'Glas', color: '#ff9f5a', level: 0.9 }
 
 export function makeLoop(voice: string, kind: LoopKind, opts: Partial<Loop> = {}): Loop {
   const def = kind === 'sample' ? SAMPLE_DEF : kind === 'drum' ? instrumentOf(voice) : melodicOf(voice)
@@ -370,5 +370,5 @@ export function reducer(song: Song, a: Action): Song {
 export const LOOP_CHOICES = [
   ...INSTRUMENTS.map((i) => ({ voice: i.voice, name: i.name, kind: 'drum' as LoopKind, color: i.color })),
   ...MELODIC.map((i) => ({ voice: i.voice, name: i.name, kind: 'melody' as LoopKind, color: i.color })),
-  { voice: 'mic', name: 'Mikrofon', kind: 'sample' as LoopKind, color: SAMPLE_DEF.color },
+  { voice: 'mic', name: 'Glas (mikrofon)', kind: 'sample' as LoopKind, color: SAMPLE_DEF.color },
 ]

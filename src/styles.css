@@ -443,6 +443,13 @@ button:active {
   border-radius: 10px;
 }
 
+.chip--wide {
+  flex: 1;
+  min-width: 160px;
+  color: var(--track);
+  border-color: color-mix(in srgb, var(--track) 45%, transparent);
+}
+
 .make__error {
   margin: 0;
   font-size: 12px;

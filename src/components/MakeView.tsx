@@ -4,6 +4,7 @@ import type { Engine } from '../audio/engine'
 import { midiName } from '../audio/instruments'
 import { useLoopLines } from '../hooks/useLoopLines'
 import { MicRecorder, peaksOf } from '../audio/recorder'
+import { declick, mixInto, normalize } from '../audio/take'
 import { saveSample } from '../state/samples'
 import { LOOP_CHOICES, loopById, makeLoop } from '../state/song'
 import type { Action } from '../state/song'
@@ -57,6 +58,7 @@ export function MakeView({ song, engine, dispatch, selectedId, onSelect, onEnsur
   const [micStage, setMicStage] = useState<'off' | 'ready' | 'waiting' | 'recording' | 'error'>('off')
   const [micError, setMicError] = useState('')
   const [recBars, setRecBars] = useState(1)
+  const [autoLevel, setAutoLevel] = useState(true)
 
   const meter = useRef<HTMLElement | null>(null)
 
@@ -114,7 +116,11 @@ export function MakeView({ song, engine, dispatch, selectedId, onSelect, onEnsur
     if (next) await onEnsurePlaying()
   }
 
-  const recordMic = async () => {
+  /**
+   * Posname glas v izbrani loop. `overdub` novo plast prišteje k obstoječi,
+   * kar je klasičen looperski prijem za dvoglasje.
+   */
+  const recordMic = async (overdub = false) => {
     setMicError('')
     try {
       await onEnsurePlaying()
@@ -132,14 +138,20 @@ export function MakeView({ song, engine, dispatch, selectedId, onSelect, onEnsur
       const startTime = engine.timeOfStep(startStep)
       if (startTime === null) throw new Error('ura ne teče')
 
-      const length = recBars * STEPS_PER_BAR
+      const previous = overdub ? engine.getSample(loop.id) : null
+      // plast se mora ujemati z dolžino obstoječega posnetka, ne z izbiro v vrstici
+      const length = previous ? loop.length : recBars * STEPS_PER_BAR
       const duration = length * engine.stepDuration
       if (!song.metronome) dispatch({ t: 'song', patch: { metronome: true } })
 
       const untilStart = Math.max(0, (startTime - ctx.currentTime) * 1000)
       window.setTimeout(() => setMicStage('recording'), untilStart)
 
-      const data = await mic.current!.record(ctx, startTime, duration, loop.offsetMs ?? 0)
+      const take = await mic.current!.record(ctx, startTime, duration, loop.offsetMs ?? 0)
+      declick(take, ctx.sampleRate)
+      if (autoLevel && !previous) normalize(take)
+
+      const data = previous ? mixInto(previous.data, take) : take
       const sample = { data, sampleRate: ctx.sampleRate }
       engine.setSample(loop.id, sample)
       await saveSample(loop.id, sample)
@@ -153,6 +165,14 @@ export function MakeView({ song, engine, dispatch, selectedId, onSelect, onEnsur
       setMicError(e instanceof Error ? e.message : String(e))
       setMicStage('error')
     }
+  }
+
+  /** Nov glas: svoj loop s svojim gumbom, da lahko glasove plastiš drug ob drugem. */
+  const addVoice = () => {
+    const fresh = makeLoop('mic', 'sample', { active: false })
+    dispatch({ t: 'loopInsert', loop: fresh })
+    onSelect(fresh.id)
+    setMicStage((stage) => (stage === 'error' ? 'off' : stage))
   }
 
   const addLoop = (x: number, y: number) => {
@@ -233,15 +253,43 @@ export function MakeView({ song, engine, dispatch, selectedId, onSelect, onEnsur
               onClick={() => void recordMic()}
             >
               <span className="rec__dot" />
-              {micStage === 'waiting' ? 'ODŠTEVANJE' : micStage === 'recording' ? 'SNEMAM' : 'SNEMAJ Z MIKROFONA'}
+              {micStage === 'waiting'
+                ? 'ODŠTEVANJE'
+                : micStage === 'recording'
+                  ? 'SNEMAM'
+                  : loop.peaks?.length
+                    ? 'POSNEMI ZNOVA'
+                    : 'SNEMAJ GLAS'}
             </button>
-            <span className="make__label">Dolžina</span>
-            {[1, 2, 4].map((b) => (
-              <button key={b} className={`chip${recBars === b ? ' chip--on' : ''}`} onClick={() => setRecBars(b)}>
-                {b === 1 ? '1 takt' : `${b} takti`}
-              </button>
-            ))}
+            {!loop.peaks?.length && (
+              <>
+                <span className="make__label">Dolžina</span>
+                {[1, 2, 4].map((b) => (
+                  <button key={b} className={`chip${recBars === b ? ' chip--on' : ''}`} onClick={() => setRecBars(b)}>
+                    {b === 1 ? '1 takt' : `${b} takti`}
+                  </button>
+                ))}
+              </>
+            )}
+            <button className={`chip${autoLevel ? ' chip--on' : ''}`} onClick={() => setAutoLevel((v) => !v)}>
+              Samodejna glasnost
+            </button>
           </div>
+
+          {loop.peaks?.length ? (
+            <div className="make__opts">
+              <button
+                className="chip chip--wide"
+                disabled={micStage === 'waiting' || micStage === 'recording'}
+                onClick={() => void recordMic(true)}
+              >
+                + Dodaj plast na ta glas
+              </button>
+              <button className="chip" onClick={addVoice}>
+                + Nov glas
+              </button>
+            </div>
+          ) : null}
 
           <div className="meter">
             <i ref={meter} />

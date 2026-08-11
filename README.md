@@ -37,15 +37,22 @@ bas in enotaktni hi-hat ostaneta v fazi, prižiganje sredi takta pa ne premakne 
 - **Akcent** naredi naslednje udarce glasnejše, **Metronom** doda klik na vsako dobo.
 - Pod ploščicami je mreža istega loopa: kar zgrešiš, popraviš s prstom.
 
-**Mikrofon** je v istem oknu: **+ nov → Posnetek → Mikrofon**.
+**Glas z mikrofonom** je v istem oknu: **+ nov → Posnetek → Glas (mikrofon)**.
 
-- Izbereš dolžino (1, 2 ali 4 takte) in pritisneš **SNEMAJ Z MIKROFONA**.
+- Vsak posnetek je **svoj loop** s svojim velikim gumbom — glasove dodajaš enega za drugim
+  (Glas, Glas 2, Glas 3 …) in vsakega posebej prižgeš ali ugasneš.
+- Izbereš dolžino (1, 2 ali 4 takte) in pritisneš **SNEMAJ GLAS**.
 - Snemanje se sproži šele na začetku naslednjega takta — vmesni takt je odštevanje z
   metronomom, tako da posnetek pade točno v mrežo.
 - Zajem teče v `AudioWorklet` po vzorcih (`public/capture-worklet.js`), zato je posnetek
   natanko toliko dolg, kolikor traja loop.
 - **Zamik naprave** premakne okno snemanja naprej ali nazaj; s tem izničiš zakasnitev
   svojega telefona. Če posnetek zveni prepozno, povečaj zamik in posnemi znova.
+- **+ Dodaj plast na ta glas** posname še eno plast in jo prišteje k obstoječi (dvoglasje,
+  odgovori, tolkala z usti). Vsota se mehko omeji, da ne zaklipa.
+- **Samodejna glasnost** dvigne tih posnetek na spodobno raven; robovi posnetka se vedno
+  zabrišejo za 6 ms, da rez ob vsakem obhodu ne poka.
+- **+ Nov glas** takoj naredi naslednji glasovni loop.
 - Posnetki gredo v IndexedDB (ne v localStorage, kjer bi hitro zmanjkalo prostora).
 - Ob spremembi tempa se posnetek raztegne, da ostane v ritmu.
 
