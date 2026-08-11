@@ -1,5 +1,5 @@
 import type { StoredSample } from '../state/samples'
-import { loopPlaysAt } from '../state/song'
+import { altPlaysOn, loopPlaysAt } from '../state/song'
 import type { Loop, Song, Vel } from '../types'
 import { STEPS_PER_BAR } from '../types'
 import { midiToFreq } from './instruments'
@@ -217,8 +217,8 @@ export class Engine {
     })
   }
 
-  /** Razreši en korak enega loopa v zvok. */
-  private scheduleLoop(loop: Loop, localStep: number, time: number) {
+  /** Razreši en korak enega loopa v zvok. `cycle` je zaporedni obhod loopa. */
+  private scheduleLoop(loop: Loop, localStep: number, time: number, cycle: number) {
     if (!this.ctx || !this.master) return
 
     if (loop.kind === 'sample') {
@@ -243,6 +243,7 @@ export class Engine {
       if (!voice) return
       for (const n of loop.notes) {
         if (n.step !== localStep || !n.v) continue
+        if (!altPlaysOn(n.alt, cycle)) continue
         voice(this.ctx, this.master, time, {
           gain: loop.level * GAIN_BY_VEL[n.v],
           tune: 0,
@@ -256,6 +257,7 @@ export class Engine {
 
     const step = loop.steps[localStep]
     if (!step || !step.v) return
+    if (!altPlaysOn(step.alt, cycle)) return
     const roll = Math.max(1, step.roll ?? 1)
     if (roll === 1) {
       this.playDrum(loop, step.v, time)
@@ -281,7 +283,7 @@ export class Engine {
 
       for (const loop of song.loops) {
         if (!loopPlaysAt(song, loop, step)) continue
-        this.scheduleLoop(loop, step % loop.length, time)
+        this.scheduleLoop(loop, step % loop.length, time, Math.floor(step / loop.length))
       }
 
       // metronom: klik na vsako dobo, višji na prvo dobo takta

@@ -1,16 +1,25 @@
 /** 0 = tišina, 1 = ghost (tiho), 2 = normalno, 3 = akcent */
 export type Vel = 0 | 1 | 2 | 3
 
+/**
+ * Izmenjava: 'A' igra v lihih obhodih loopa, 'B' v sodih, nedefinirano vedno.
+ * Dve noti na istem koraku, ena A in ena B, se tako menjata iz obhoda v obhod.
+ */
+export type Alt = 'A' | 'B'
+
 export interface Step {
   v: Vel
   /** koliko udarcev znotraj enega koraka (roll/ratchet); 1 ali nedefinirano = en */
   roll?: number
+  alt?: Alt
 }
 
 /** Nota na klavirski mreži. */
 export interface Note {
   /** začetek v korakih od začetka loopa */
   step: number
+  /** igraj samo v vsakem drugem obhodu (glej Alt) */
+  alt?: Alt
   /** MIDI višina (60 = C4) */
   midi: number
   /** dolžina v korakih */

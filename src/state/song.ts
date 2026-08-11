@@ -1,5 +1,5 @@
 import { INSTRUMENTS, MELODIC, emptySteps, instrumentOf, melodicOf, parseSteps } from '../audio/instruments'
-import type { Loop, LoopKind, Note, Section, Song, Step, Vel } from '../types'
+import type { Alt, Loop, LoopKind, Note, Section, Song, Step, Vel } from '../types'
 import { STEPS_PER_BAR } from '../types'
 
 let idSeq = 0
@@ -89,6 +89,13 @@ export function sectionAt(song: Song, globalStep: number): { section: Section; i
   }
   return { section: list[0], index: 0, barInSection: 0 }
 }
+
+/**
+ * Ali oznaka A/B ustreza temu obhodu loopa: A igra v lihih obhodih (0., 2. …),
+ * B v sodih (1., 3. …), nič pa vedno. Tako se par not izmenjuje iz obhoda v obhod.
+ */
+export const altPlaysOn = (alt: Alt | undefined, cycle: number): boolean =>
+  !alt || (alt === 'A') === (cycle % 2 === 0)
 
 /** Ali loop ob tem koraku igra — v zaporedju odloča kitica, sicer stikalo loopa. */
 export function loopPlaysAt(song: Song, loop: Loop, globalStep: number): boolean {
@@ -287,7 +294,10 @@ export function reducer(song: Song, a: Action): Song {
     case 'step':
       return mapLoop(song, a.id, (l) => {
         const cur = l.steps[a.step]
-        if (cur && cur.v === a.value.v && (cur.roll ?? 1) === (a.value.roll ?? 1)) return l
+        // brez primerjave oznake A/B bi sprememba izmenjave izpadla kot prazen hod
+        const same =
+          cur && cur.v === a.value.v && (cur.roll ?? 1) === (a.value.roll ?? 1) && cur.alt === a.value.alt
+        if (same) return l
         return { ...l, steps: l.steps.map((s, i) => (i === a.step ? a.value : s)) }
       })
 

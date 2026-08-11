@@ -6,7 +6,7 @@ import { usePlayhead } from '../hooks/usePlayhead'
 import { longPress } from '../hooks/longPress'
 import { chordNotes, diatonicChords } from '../state/song'
 import type { Action } from '../state/song'
-import type { Loop, Note, Vel } from '../types'
+import type { Alt, Loop, Note, Vel } from '../types'
 import type { MenuItem } from './ContextMenu'
 
 interface Props {
@@ -71,6 +71,25 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
       checked: n.v === v,
       onClick: () => dispatch({ t: 'notePatch', id: loop.id, step: n.step, midi: n.midi, patch: { v } }),
     })),
+    { separator: true },
+    { label: 'Izmenjava med obhodi', header: true },
+    ...([
+      [undefined, 'Vedno'],
+      ['A', 'Samo A (1., 3. obhod)'],
+      ['B', 'Samo B (2., 4. obhod)'],
+    ] as [Alt | undefined, string][]).map(([alt, label]) => ({
+      label,
+      checked: n.alt === alt,
+      onClick: () => dispatch({ t: 'notePatch', id: loop.id, step: n.step, midi: n.midi, patch: { alt } }),
+    })),
+    {
+      label: 'Naredi par A/B tukaj',
+      onClick: () => {
+        dispatch({ t: 'notePatch', id: loop.id, step: n.step, midi: n.midi, patch: { alt: 'A' } })
+        // druga nota para pristane cel ton više, da se takoj sliši razlika
+        dispatch({ t: 'noteAdd', id: loop.id, notes: [{ step: n.step, midi: fit(n.midi + 2), len: n.len, v: n.v, alt: 'B' }] })
+      },
+    },
     { separator: true },
     { label: 'Izbriši noto', danger: true, onClick: () => dispatch({ t: 'noteRemove', id: loop.id, step: n.step, midi: n.midi }) },
   ]
@@ -200,7 +219,9 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
                             e.preventDefault()
                             openMenu(e.clientX, e.clientY, noteMenu(n))
                           }}
-                        />
+                        >
+                          {n.alt && <span className="pnote__alt">{n.alt}</span>}
+                        </button>
                       )
                     })}
                 </div>

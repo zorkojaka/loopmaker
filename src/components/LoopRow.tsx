@@ -5,7 +5,7 @@ import { longPress } from '../hooks/longPress'
 import { midiName } from '../audio/instruments'
 import { barsOf, cloneLoop } from '../state/song'
 import type { Action } from '../state/song'
-import type { Loop, Vel } from '../types'
+import type { Alt, Loop, Vel } from '../types'
 import type { MenuItem } from './ContextMenu'
 import { PianoRoll } from './PianoRoll'
 import { Waveform } from './Waveform'
@@ -69,7 +69,8 @@ export function LoopRow({ loop, engine, dispatch, playing, expanded, onExpand, o
     gridTemplateColumns: `repeat(${loop.length}, minmax(${loop.length > 16 ? '17px' : '0'}, 1fr))`,
   }
 
-  const setStep = (step: number, value: { v: Vel; roll?: number }) => dispatch({ t: 'step', id: loop.id, step, value })
+  const setStep = (step: number, value: { v: Vel; roll?: number; alt?: Alt }) =>
+    dispatch({ t: 'step', id: loop.id, step, value })
 
   const stepAt = (x: number, y: number): number | null => {
     const el = document.elementFromPoint(x, y)
@@ -93,6 +94,17 @@ export function LoopRow({ loop, engine, dispatch, playing, expanded, onExpand, o
         label: roll === 1 ? 'Brez' : `×${roll}`,
         checked: (cur.roll ?? 1) === roll,
         onClick: () => setStep(step, { v: cur.v || 2, roll }),
+      })),
+      { separator: true },
+      { label: 'Izmenjava med obhodi', header: true },
+      ...([
+        [undefined, 'Vedno'],
+        ['A', 'Samo A (1., 3. obhod)'],
+        ['B', 'Samo B (2., 4. obhod)'],
+      ] as [Alt | undefined, string][]).map(([alt, label]) => ({
+        label,
+        checked: cur.alt === alt,
+        onClick: () => setStep(step, { v: cur.v || 2, roll: cur.roll, alt }),
       })),
       { separator: true },
       { label: 'Izbriši korak', onClick: () => setStep(step, { v: 0 }) },
@@ -137,6 +149,19 @@ export function LoopRow({ loop, engine, dispatch, playing, expanded, onExpand, o
     { label: 'Izbriši loop', danger: true, onClick: () => dispatch({ t: 'loopDelete', id: loop.id }) },
   ]
 
+  /** Dolžina se vrti 1 → 2 → 4 takte; s tem se izognemo meniju za eno samo izbiro. */
+  const cycleLength = () => {
+    const next = loop.length === 16 ? 32 : loop.length === 32 ? 64 : 16
+    dispatch({ t: 'loopLength', id: loop.id, length: next })
+  }
+
+  /** Izbris je edino nepovratno dejanje v vrstici, zato vpraša, kadar je kaj za izgubiti. */
+  const remove = () => {
+    const hasContent = sampled ? !!loop.peaks?.length : melodic ? loop.notes.length > 0 : loop.steps.some((s) => s.v)
+    if (hasContent && !confirm(`Izbrišem loop "${loop.name}"?`)) return
+    dispatch({ t: 'loopDelete', id: loop.id })
+  }
+
   const handleDown = (e: React.PointerEvent) => {
     if (melodic || sampled || e.button === 2) return
     const step = stepAt(e.clientX, e.clientY)
@@ -145,7 +170,7 @@ export function LoopRow({ loop, engine, dispatch, playing, expanded, onExpand, o
     // klik kroži prazno → normalno → akcent → prazno; niansa je v dolgem pritisku
     const next: Vel = cur.v === 0 ? 2 : cur.v === 2 ? 3 : 0
     paint.current = next
-    setStep(step, { v: next, roll: next ? cur.roll : undefined })
+    setStep(step, { v: next, roll: next ? cur.roll : undefined, alt: next ? cur.alt : undefined })
     e.currentTarget.setPointerCapture?.(e.pointerId)
   }
 
@@ -193,8 +218,22 @@ export function LoopRow({ loop, engine, dispatch, playing, expanded, onExpand, o
           <button className={`lrow__btn${expanded ? ' lrow__btn--on' : ''}`} onClick={onExpand} aria-label="Podrobnosti">
             {expanded ? '⌃' : '⌄'}
           </button>
-          <button className="lrow__btn" onClick={(e) => openMenu(e.clientX, e.clientY, rowMenu())} aria-label="Meni">
-            ⋯
+          <button
+            className="lrow__btn lrow__btn--len"
+            onClick={cycleLength}
+            aria-label={`Dolžina ${barsOf(loop)} ${barsOf(loop) === 1 ? 'takt' : 'takti'}, tap za naslednjo`}
+            title="Dolžina loopa"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M3 8a5 5 0 0 1 8.5-3.5M13 8a5 5 0 0 1-8.5 3.5" />
+              <path d="M11 1.5V5h-3.4M5 14.5V11h3.4" />
+            </svg>
+            {barsOf(loop)}t
+          </button>
+          <button className="lrow__btn lrow__btn--danger" onClick={remove} aria-label={`Izbriši ${loop.name}`} title="Izbriši loop">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.2a1 1 0 0 0 1 .8h3.6a1 1 0 0 0 1-.8l.7-8.2" />
+            </svg>
           </button>
         </div>
 
@@ -243,6 +282,7 @@ export function LoopRow({ loop, engine, dispatch, playing, expanded, onExpand, o
                     {...longPress((x, y) => openMenu(x, y, stepMenu(i)))}
                   >
                     {s?.v > 0 && (s.roll ?? 1) > 1 && <span className="cell__roll">{s.roll}</span>}
+                  {s?.v > 0 && s.alt && <span className="cell__alt">{s.alt}</span>}
                   </div>
                 )
               })}

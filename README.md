@@ -67,9 +67,12 @@ Vse je na enem zaslonu. Vsak loop je svoja vrstica:
 - **⌄** odpre podrobnosti kar pod vrstico: glasnost, uglasitev, izzven, dolžina loopa,
   poslušaj, podvoji, počisti, izbriši. Pri melodičnih loopih se tu odpre tudi **klaviatura**
   z vrstico akordov.
-- **⋯** (ali dolg pritisk na velik gumb) odpre meni: prižgi/ugasni, samo ta naj igra,
-  podvoji, preimenuj, dolžina, zapolni vsako 4- ali 8-tinko, počisti, izbriši.
-- **Dolg pritisk / desni klik na polje v mreži**: ghost, akcent, **roll ×2–×4**, izbriši.
+- Ob ⌄ sta dve ikoni: **zanka s številko** (tap kroži dolžino 1 → 2 → 4 takte) in **koš**
+  (izbris; pri loopu z vsebino vpraša za potrditev).
+- **Dolg pritisk na velik gumb** odpre celoten meni: prižgi/ugasni, samo ta naj igra,
+  podvoji, preimenuj, zapolni vsako 4- ali 8-tinko, počisti.
+- **Dolg pritisk / desni klik na polje v mreži**: ghost, akcent, **roll ×2–×4**, **izmenjava
+  A/B**, izbriši.
 - Spodaj so **+ Nov loop**, **Vse prižgi** in **Vse ugasni**.
 
 **Kitice** so nad kanali:
@@ -88,6 +91,10 @@ Vse je na enem zaslonu. Vsak loop je svoja vrstica:
 - **Vrstica akordov**: izberi tonaliteto (C…B, dur/mol) in klikni stopnjo (I, ii, IV, V …) —
   trozvok se vstavi na kazalec in ga premakne naprej.
 - **Tipke levo** so igralne. **−8va / +8va** premakneta okno za oktavo.
+- **Izmenjava A/B**: nota, označena z **A**, igra v 1., 3., 5. obhodu loopa, nota z **B** pa v
+  2., 4., 6. Dve noti na istem koraku — ena A, ena B — se tako menjata iz obhoda v obhod in
+  melodija se ne ponavlja tako suho. V meniju note je tudi **Naredi par A/B tukaj**, ki
+  obstoječo noto označi z A in cel ton više doda njen B par. Isto velja za korake bobnov.
 
 **Ostalo**
 
