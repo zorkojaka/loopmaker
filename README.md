@@ -67,8 +67,9 @@ Vse je na enem zaslonu. Vsak loop je svoja vrstica:
 - **⌄** odpre podrobnosti kar pod vrstico: glasnost, uglasitev, izzven, dolžina loopa,
   poslušaj, podvoji, počisti, izbriši. Pri melodičnih loopih se tu odpre tudi **klaviatura**
   z vrstico akordov.
-- Ob ⌄ sta dve ikoni: **zanka s številko** (tap kroži dolžino 1 → 2 → 4 takte) in **koš**
-  (izbris; pri loopu z vsebino vpraša za potrditev).
+- V glavi vrstice so ikone: **svinčnik** (odpre ta loop v pogledu *Delaj loop*, da ga
+  popraviš ali dosnameš), **⌄** (podrobnosti), **zanka s številko** (tap kroži dolžino
+  1 → 2 → 4 takte) in **koš** (izbris; pri loopu z vsebino vpraša za potrditev).
 - **Dolg pritisk na velik gumb** odpre celoten meni: prižgi/ugasni, samo ta naj igra,
   podvoji, preimenuj, zapolni vsako 4- ali 8-tinko, počisti.
 - **Dolg pritisk / desni klik na polje v mreži**: ghost, akcent, **roll ×2–×4**, **izmenjava

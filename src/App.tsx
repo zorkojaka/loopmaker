@@ -99,6 +99,12 @@ export default function App() {
 
   const openMenu = useCallback((x: number, y: number, items: MenuItem[]) => setMenu({ x, y, items }), [])
 
+  /** Svinčnik v kanalu odpre isti loop v pogledu, kjer se ureja. */
+  const editLoop = useCallback((id: string) => {
+    setSelectedId(id)
+    setView('make')
+  }, [])
+
   return (
     <div className="app" onContextMenu={(e) => e.preventDefault()}>
       <TopBar
@@ -123,7 +129,7 @@ export default function App() {
             openMenu={openMenu}
           />
         ) : (
-          <Board song={song} engine={engine} dispatch={dispatch} openMenu={openMenu} />
+          <Board song={song} engine={engine} dispatch={dispatch} onEditLoop={editLoop} openMenu={openMenu} />
         )}
       </main>
 

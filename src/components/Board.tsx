@@ -13,6 +13,8 @@ interface Props {
   song: Song
   engine: Engine
   dispatch: Dispatch<Action>
+  /** odpre pogled "Delaj loop" z izbranim loopom */
+  onEditLoop: (id: string) => void
   openMenu: (x: number, y: number, items: MenuItem[]) => void
 }
 
@@ -21,7 +23,7 @@ interface Props {
  * črto, ki teče po njej — zato se na prvi pogled vidi, da dvotaktni bas kroži
  * počasneje od enotaktnega hi-hata.
  */
-export function Board({ song, engine, dispatch, openMenu }: Props) {
+export function Board({ song, engine, dispatch, onEditLoop, openMenu }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const registerLine = useLoopLines(engine, song)
   /** kateri loopi res igrajo — v zaporedju to določa kitica, ne stikalo */
@@ -79,6 +81,7 @@ export function Board({ song, engine, dispatch, openMenu }: Props) {
           engine={engine}
           dispatch={dispatch}
           playing={playingIds ? playingIds.includes(loop.id) : loop.active}
+          onEdit={() => onEditLoop(loop.id)}
           expanded={expanded === loop.id}
           onExpand={() => setExpanded((id) => (id === loop.id ? null : loop.id))}
           openMenu={openMenu}

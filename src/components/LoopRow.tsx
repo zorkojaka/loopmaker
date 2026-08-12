@@ -18,6 +18,8 @@ interface Props {
   playing?: boolean
   expanded: boolean
   onExpand: () => void
+  /** skok v pogled "Delaj loop" s tem loopom; brez tega se ikona ne izriše */
+  onEdit?: () => void
   openMenu: (x: number, y: number, items: MenuItem[]) => void
   registerLine: (id: string, el: HTMLElement | null) => void
 }
@@ -57,7 +59,7 @@ function Slider({
  * takoj tudi urejaš. Podrobnosti (glasnost, uglasitev, klaviatura) se odprejo
  * pod vrstico, da ni treba nikamor oditi.
  */
-export function LoopRow({ loop, engine, dispatch, playing, expanded, onExpand, openMenu, registerLine }: Props) {
+export function LoopRow({ loop, engine, dispatch, playing, expanded, onExpand, onEdit, openMenu, registerLine }: Props) {
   const on = playing ?? loop.active
   /** vrednost, ki jo trenutno "barvamo" med vlečenjem; null = ne vlečemo */
   const paint = useRef<Vel | null>(null)
@@ -215,6 +217,14 @@ export function LoopRow({ loop, engine, dispatch, playing, expanded, onExpand, o
           <span className="lrow__meta">
             {summary} · {barsOf(loop) === 1 ? '1 takt' : `${barsOf(loop)} takti`}
           </span>
+          {onEdit && (
+            <button className="lrow__btn" onClick={onEdit} aria-label={`Uredi ${loop.name}`} title="Uredi vzorec">
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M11.2 2.3 13.7 4.8 5.4 13H3v-2.4z" />
+                <path d="M10 3.5 12.5 6" />
+              </svg>
+            </button>
+          )}
           <button className={`lrow__btn${expanded ? ' lrow__btn--on' : ''}`} onClick={onExpand} aria-label="Podrobnosti">
             {expanded ? '⌃' : '⌄'}
           </button>
