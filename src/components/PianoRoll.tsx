@@ -37,6 +37,8 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
   const [low, setLow] = useState(() => initialLow(loop))
   const [len, setLen] = useState(4)
   const [caret, setCaret] = useState(0)
+  /** nota, ki ima odprta gumba ✕ in ⌄ — na telefonu se ne da zadeti drugače */
+  const [selected, setSelected] = useState<{ step: number; midi: number } | null>(null)
   const [root, setRoot] = useState(0) // C
   const [mode, setMode] = useState<'dur' | 'mol'>('dur')
 
@@ -49,6 +51,8 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
   const columns: CSSProperties = { gridTemplateColumns: `repeat(${loop.length}, minmax(26px, 1fr))` }
   const rows = Array.from({ length: ROWS }, (_, i) => low + ROWS - 1 - i)
   const chordBase = low + 12 + root
+  const selectedNote = selected ? loop.notes.find((n) => n.step === selected.step && n.midi === selected.midi) : undefined
+  const selectedRow = selectedNote ? low + ROWS - 1 - selectedNote.midi : 0
 
   /**
    * Zloži noto v vidno okno. Pri akordih to pomeni obrat (inverzijo) — ton, ki
@@ -125,7 +129,8 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
     drag.current = null
     if (!d) return
     d.note.classList.remove('pnote--drag')
-    // kratek dotik brez premika samo predposluša — brisanje je v meniju
+    // kratek dotik noto izbere in odpre njena gumba; vlečenje jo je že premaknilo
+    setSelected({ step: d.step, midi: d.midi })
     if (!d.moved && !engine.playing) void engine.previewNote(loop.voice, d.midi + loop.tune, loop.level)
   }
 
@@ -263,6 +268,7 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
                       className={`pslot${step % 4 === 0 ? ' pslot--beat' : ''}${step === caret ? ' pslot--caret' : ''}${step === playStep ? ' pslot--play' : ''}`}
                       onClick={() => {
                         setCaret(step)
+                        setSelected(null)
                         addNotes(step, [midi])
                       }}
                       onContextMenu={(e) => {
@@ -283,11 +289,11 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
                 {loop.notes.map((n, i) => {
                   const row = low + ROWS - 1 - n.midi
                   if (row < 0 || row >= ROWS) return null
-                  const press = longPress((x, y) => openMenu(x, y, noteMenu(n)))
+                  const isSel = selected?.step === n.step && selected?.midi === n.midi
                   return (
                     <div
                       key={i}
-                      className={`pnote pnote--v${n.v}`}
+                      className={`pnote pnote--v${n.v}${isSel ? ' pnote--sel' : ''}`}
                       style={
                         {
                           '--track': loop.color,
@@ -297,11 +303,7 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
                           width: `${(Math.min(n.len, loop.length - n.step) / loop.length) * 100}%`,
                         } as CSSProperties
                       }
-                      {...press}
-                      onPointerDown={(e) => {
-                        press.onPointerDown(e)
-                        beginDrag(e, n, 'move')
-                      }}
+                      onPointerDown={(e) => beginDrag(e, n, 'move')}
                       onPointerMove={onDragMove}
                       onPointerUp={onDragEnd}
                       onPointerCancel={onDragEnd}
@@ -324,6 +326,40 @@ export function PianoRoll({ loop, engine, dispatch, openMenu }: Props) {
                     </div>
                   )
                 })}
+
+                {selectedNote && (
+                  <div
+                    className="notebar"
+                    style={
+                      {
+                        left: `${(selectedNote.step / loop.length) * 100}%`,
+                        // nad noto, razen pri vrhu mreže, kjer ni prostora
+                        top:
+                          selectedRow >= 1
+                            ? selectedRow * (ROW_H + ROW_GAP) - 30
+                            : selectedRow * (ROW_H + ROW_GAP) + ROW_H + 4,
+                      } as CSSProperties
+                    }
+                  >
+                    <button
+                      className="notebar__btn notebar__btn--x"
+                      aria-label="Izbriši noto"
+                      onClick={() => {
+                        dispatch({ t: 'noteRemove', id: loop.id, step: selectedNote.step, midi: selectedNote.midi })
+                        setSelected(null)
+                      }}
+                    >
+                      ✕
+                    </button>
+                    <button
+                      className="notebar__btn"
+                      aria-label="Več možnosti"
+                      onClick={(e) => openMenu(e.clientX, e.clientY, noteMenu(selectedNote))}
+                    >
+                      ⌄
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 

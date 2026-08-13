@@ -1183,6 +1183,39 @@ button:active {
   background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.35));
 }
 
+.pnote--sel {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+  z-index: 2;
+}
+
+/* gumba izbrane note; lebdita nad njo, da sta dosegljiva tudi pri ozkih notah */
+.notebar {
+  position: absolute;
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+  z-index: 5;
+}
+
+.notebar__btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 8px;
+  color: var(--text);
+  background: #1b2130;
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.notebar__btn--x {
+  color: #ff7b8a;
+  border-color: #5a2b35;
+}
+
 .pnote--drag {
   cursor: grabbing;
   filter: brightness(1.2);

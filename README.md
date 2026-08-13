@@ -92,7 +92,11 @@ Vse je na enem zaslonu. Vsak loop je svoja vrstica:
 - **Vrstica akordov**: izberi tonaliteto (C…B, dur/mol) in klikni stopnjo (I, ii, IV, V …) —
   trozvok se vstavi na kazalec in ga premakne naprej.
 - **Note se vlečejo**: povleci telo note za premik po času in višini, povleci **desni rob**
-  za krajšanje ali daljšanje. Kratek dotik noto samo predposluša, brisanje je v meniju.
+  za krajšanje ali daljšanje.
+- **Tap na noto** jo izbere (in predposluša), nad njo pa se prikažeta gumba: **✕** jo izbriše,
+  **⌄** odpre ostale možnosti (dolžina, glasnost, izmenjava A/B). Gumba lebdita nad noto, zato
+  sta dosegljiva tudi pri najkrajših notah. Dolg pritisk na noto ne odpira več menija — med
+  vlečenjem se je odpiral sam od sebe.
 - **Tipke levo** so igralne. **−8va / +8va** premakneta okno za oktavo; ob odprtju se okno
   samo postavi tako, da so note loopa vidne.
 - **Izmenjava A/B**: nota, označena z **A**, igra v 1., 3., 5. obhodu loopa, nota z **B** pa v
